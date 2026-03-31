@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IBL Energy — Knowledge Library</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:   #002060;
+    --pink:   #FF51A1;
+    --cyan:   #00D0DA;
+    --navy-light: #0a3080;
+    --navy-dark:  #001040;
+    --pink-light: #ff78b8;
+    --cyan-light: #33dde3;
+    --cream: #f5f7fc;
+    --white: #ffffff;
+    --text: #0d1a33;
+    --text-muted: #6b7a99;
+    --border: #dde3f0;
+    --shadow: 0 4px 24px rgba(0,32,96,0.10);
+    --shadow-hover: 0 10px 40px rgba(0,32,96,0.18);
+    --radius: 16px;
+    --radius-sm: 9px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text); min-height: 100vh; font-size: 15px; }
+
+  header {
+    background: var(--navy-dark);
+    padding: 0 36px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 70px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.22);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 14px; }
+  .logo-icon {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--pink), var(--cyan));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 2px 12px rgba(255,81,161,0.4);
+  }
+  .logo-text { font-family: 'Playfair Display', serif; color: white; font-size: 1.22rem; }
+  .logo-sub { color: var(--cyan); font-size: 0.68rem; letter-spacing: 2.5px; text-transform: uppercase; margin-top: 1px; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .user-select-wrap { display: flex; align-items: center; gap: 9px; }
+  .user-select-wrap label { color: rgba(255,255,255,0.55); font-size: 0.78rem; white-space: nowrap; }
+  select#currentUser {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: white;
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif; font-size: 0.88rem; cursor: pointer; outline: none;
+  }
+  select#currentUser option { background: var(--navy-dark); color: white; }
+
+  .hero {
+    background: linear-gradient(120deg, var(--navy) 0%, var(--navy-light) 60%, #0d3a9e 100%);
+    padding: 40px 40px 34px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 24px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; right: -60px; top: -60px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(0,208,218,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-title { font-family: 'Playfair Display', serif; color: white; font-size: 2.1rem; line-height: 1.15; }
+  .hero-title .ap { color: var(--pink); }
+  .hero-title .ac { color: var(--cyan); }
+  .hero-subtitle { color: rgba(255,255,255,0.6); font-size: 0.9rem; margin-top: 6px; }
+  .hero-stats { display: flex; gap: 18px; flex-wrap: wrap; }
+  .stat-card {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+    border-radius: var(--radius); padding: 16px 24px; text-align: center; min-width: 94px;
+    backdrop-filter: blur(8px);
+  }
+  .stat-num { font-size: 1.9rem; font-weight: 700; line-height: 1; }
+  .stat-num.pink { color: var(--pink); }
+  .stat-num.cyan { color: var(--cyan); }
+  .stat-num.white { color: white; }
+  .stat-label { font-size: 0.68rem; color: rgba(255,255,255,0.55); margin-top: 4px; text-transform: uppercase; letter-spacing: 1.2px; }
+
+  .tabs {
+    display: flex; gap: 2px; padding: 0 40px;
+    background: var(--navy-dark);
+    border-bottom: 2px solid rgba(255,255,255,0.06);
+  }
+  .tab {
+    padding: 13px 24px; font-weight: 500; font-size: 0.86rem; cursor: pointer;
+    color: rgba(255,255,255,0.5); border: none; background: none;
+    transition: all 0.2s; border-bottom: 3px solid transparent; margin-bottom: -2px;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .tab:hover { color: var(--cyan); }
+  .tab.active { color: var(--cyan); border-bottom-color: var(--cyan); font-weight: 600; }
+
+  main { padding: 30px 40px; max-width: 1360px; margin: 0 auto; }
+
+  .search-wrap { display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+  .search-input {
+    flex: 1; min-width: 200px; padding: 11px 18px;
+    border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif; font-size: 0.92rem;
+    background: white; outline: none; transition: border 0.2s, box-shadow 0.2s; color: var(--text);
+  }
+  .search-input:focus { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(0,32,96,0.08); }
+  .filter-select {
+    padding: 11px 16px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif; font-size: 0.88rem;
+    background: white; outline: none; cursor: pointer; color: var(--text);
+  }
+
+  .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 22px; }
+  .book-card {
+    background: white; border-radius: var(--radius); box-shadow: var(--shadow);
+    overflow: hidden; display: flex; flex-direction: column;
+    transition: box-shadow 0.22s, transform 0.22s; border: 1.5px solid var(--border);
+  }
+  .book-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-4px); }
+
+  .book-cover-wrap {
+    width: 100%; height: 200px; overflow: hidden;
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+    position: relative; flex-shrink: 0;
+  }
+  .book-cover-wrap img {
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center top;
+    display: block; transition: transform 0.35s;
+  }
+  .book-card:hover .book-cover-wrap img { transform: scale(1.04); }
+  .book-cover-placeholder {
+    width: 100%; height: 100%; display: none;
+    align-items: center; justify-content: center;
+    font-size: 3.5rem;
+    background: linear-gradient(135deg, var(--navy) 0%, #1a4da0 100%);
+  }
+  .status-ribbon {
+    position: absolute; top: 12px; right: -30px;
+    background: var(--pink); color: white;
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 4px 42px; transform: rotate(45deg);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2); white-space: nowrap;
+  }
+  .status-ribbon.available { background: var(--cyan); color: var(--navy-dark); }
+
+  .book-body { padding: 16px 16px 10px; flex: 1; display: flex; flex-direction: column; }
+  .book-number { font-size: 0.64rem; color: var(--cyan); font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 5px; }
+  .book-title { font-family: 'Playfair Display', serif; font-size: 0.96rem; font-weight: 600; line-height: 1.35; margin-bottom: 4px; color: var(--navy); }
+  .book-author { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 10px; font-style: italic; }
+  .book-status-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; font-size: 0.72rem; font-weight: 600; }
+  .badge.available { background: rgba(0,208,218,0.12); color: #007a80; }
+  .badge.checked-out { background: rgba(255,81,161,0.12); color: #c0006f; }
+  .badge.requested { background: rgba(0,32,96,0.09); color: var(--navy); }
+
+  .days-badge { font-size: 0.72rem; color: var(--text-muted); background: var(--cream); padding: 2px 9px; border-radius: 99px; border: 1px solid var(--border); white-space: nowrap; }
+  .days-badge.overdue { color: #c0006f; background: rgba(255,81,161,0.08); border-color: rgba(255,81,161,0.25); }
+
+  .who-row { padding: 4px 16px 2px; font-size: 0.76rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .who-name { font-weight: 600; color: var(--navy); }
+  .requests-list { padding: 2px 16px 6px; font-size: 0.73rem; color: var(--text-muted); }
+  .requests-list-title { font-weight: 600; margin-bottom: 3px; }
+  .req-chip { display: inline-block; background: rgba(0,32,96,0.08); color: var(--navy); border-radius: 99px; padding: 2px 8px; margin: 2px 2px 0 0; font-size: 0.69rem; font-weight: 500; }
+
+  .book-footer { padding: 8px 14px 14px; display: flex; gap: 8px; }
+  .btn { padding: 9px 14px; border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.18s; flex: 1; text-align: center; }
+  .btn-primary { background: var(--navy); color: white; }
+  .btn-primary:hover { background: var(--navy-light); }
+  .btn-primary:disabled { background: #c0c8d9; cursor: not-allowed; }
+  .btn-cyan { background: var(--cyan); color: var(--navy-dark); }
+  .btn-cyan:hover { background: var(--cyan-light); }
+  .btn-outline { background: white; color: var(--navy); border: 1.5px solid var(--navy); }
+  .btn-outline:hover { background: rgba(0,32,96,0.06); }
+  .btn-outline:disabled { color: #aaa; border-color: #ddd; cursor: not-allowed; }
+  .btn-danger { background: white; color: #c0006f; border: 1.5px solid rgba(255,81,161,0.4); }
+  .btn-danger:hover { background: rgba(255,81,161,0.07); }
+  .btn-sm { padding: 6px 12px; font-size: 0.76rem; }
+
+  .section-title { font-family: 'Playfair Display', serif; font-size: 1.28rem; font-weight: 600; margin-bottom: 18px; color: var(--navy); }
+  .activity-table { width: 100%; border-collapse: collapse; background: white; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); margin-bottom: 36px; }
+  .activity-table th { background: var(--navy); color: rgba(255,255,255,0.8); font-size: 0.72rem; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; padding: 13px 18px; text-align: left; }
+  .activity-table td { padding: 13px 18px; border-bottom: 1px solid var(--border); font-size: 0.86rem; vertical-align: middle; }
+  .activity-table tr:last-child td { border-bottom: none; }
+  .activity-table tr:hover td { background: rgba(0,32,96,0.025); }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+  .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+
+  .admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 16px; margin-top: 10px; }
+  .admin-card { background: white; border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); border: 1.5px solid var(--border); }
+  .admin-card h3 { font-size: 0.88rem; font-weight: 600; margin-bottom: 10px; color: var(--navy); }
+  .admin-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+  .admin-row:last-child { border-bottom: none; }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  #toast {
+    position: fixed; bottom: 28px; right: 28px;
+    background: var(--navy); color: white;
+    padding: 13px 22px; border-radius: var(--radius-sm);
+    font-size: 0.88rem; font-weight: 500;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.22);
+    opacity: 0; transform: translateY(12px); transition: all 0.3s;
+    pointer-events: none; z-index: 999; max-width: 320px;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+  #toast.pink { background: #c0006f; }
+  #toast.cyan { background: #007a80; }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,10,30,0.55); z-index: 200;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white; border-radius: var(--radius);
+    padding: 34px; max-width: 470px; width: 92%;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.25);
+    animation: popIn 0.22s ease; border-top: 4px solid var(--navy);
+  }
+  @keyframes popIn { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal h2 { font-family: 'Playfair Display', serif; font-size: 1.28rem; margin-bottom: 10px; color: var(--navy); }
+  .modal p { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 22px; line-height: 1.65; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-select {
+    width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; margin-bottom: 18px; outline: none; cursor: pointer; color: var(--text);
+  }
+
+  @media (max-width: 700px) {
+    main { padding: 18px 14px; }
+    .hero { padding: 24px 18px; }
+    .tabs { padding: 0 14px; }
+    header { padding: 0 16px; }
+    .book-grid { grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 14px; }
+    .book-cover-wrap { height: 160px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">📚</div>
+    <div>
+      <div class="logo-text">IBL Energy Library</div>
+      <div class="logo-sub">Knowledge Hub</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="user-select-wrap">
+      <label>I am:</label>
+      <select id="currentUser" onchange="onUserChange()">
+        <option value="">— Select your name —</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<div class="hero">
+  <div>
+    <div class="hero-title">Our <span class="ap">Knowledge</span> <span class="ac">Library</span></div>
+    <div class="hero-subtitle">Borrow, read, and grow together at IBL Energy</div>
+  </div>
+  <div class="hero-stats">
+    <div class="stat-card"><div class="stat-num cyan" id="statAvailable">0</div><div class="stat-label">Available</div></div>
+    <div class="stat-card"><div class="stat-num pink" id="statCheckedOut">0</div><div class="stat-label">Checked Out</div></div>
+    <div class="stat-card"><div class="stat-num white" id="statRequests">0</div><div class="stat-label">Requests</div></div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('catalog')">📖 All Books</button>
+  <button class="tab" onclick="switchTab('mine')">My Activity</button>
+  <button class="tab" onclick="switchTab('admin')">Admin View</button>
+</div>
+
+<main>
+  <div class="page active" id="page-catalog">
+    <div class="search-wrap">
+      <input class="search-input" type="text" id="searchInput" placeholder="🔍  Search by title or author…" oninput="renderCatalog()">
+      <select class="filter-select" id="filterStatus" onchange="renderCatalog()">
+        <option value="">All Books</option>
+        <option value="available">Available</option>
+        <option value="checked-out">Checked Out</option>
+      </select>
+    </div>
+    <div class="book-grid" id="bookGrid"></div>
+  </div>
+  <div class="page" id="page-mine"><div id="mineContent"></div></div>
+  <div class="page" id="page-admin"><div id="adminContent"></div></div>
+</main>
+
+<div class="modal-overlay" id="checkoutModal">
+  <div class="modal">
+    <h2>📗 Borrow This Book</h2>
+    <p id="checkoutModalDesc"></p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('checkoutModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmCheckout()">Confirm Borrow</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="returnModal">
+  <div class="modal" style="border-top-color:var(--pink)">
+    <h2>↩️ Return Book</h2>
+    <p id="returnModalDesc"></p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('returnModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmReturn()">Confirm Return</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="requestModal">
+  <div class="modal" style="border-top-color:var(--cyan)">
+    <h2>🔖 Join the Waitlist</h2>
+    <p id="requestModalDesc"></p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('requestModal')">Cancel</button>
+      <button class="btn btn-cyan" onclick="confirmRequest()">Add to Waitlist</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="assignModal">
+  <div class="modal">
+    <h2>📋 Assign Book</h2>
+    <p id="assignModalDesc"></p>
+    <select class="modal-select" id="assignSelect"></select>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('assignModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAssign()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const EMPLOYEES = ["Pierre","Aarti","Alvin","Rao","Joshua","Delphine","Edmund","Shaan","Kavinen","Daren","Arnaud","Shakeel","Azagen","Hansley","Aradhana","Agnes","Varun","Luqman","Kamlesh","Disha","Safya","Dishma","Alvaro","Arjun","Teven","Akshay","Poumalen","Dhivesh","David"];
+
+const BOOK_COVERS = {
+  1:  "https://upload.wikimedia.org/wikipedia/en/9/9e/Start_with_why.jpg",
+  2:  "https://upload.wikimedia.org/wikipedia/en/d/d7/Good_to_Great.jpg",
+  3:  "https://m.media-amazon.com/images/I/81dlBfXmQPL.jpg",
+  4:  "https://upload.wikimedia.org/wikipedia/en/e/e8/Blue_Ocean_Strategy_2015.jpg",
+  5:  "https://m.media-amazon.com/images/I/81eEXiAKqAL.jpg",
+  6:  "https://m.media-amazon.com/images/I/71JQmLpMkKL.jpg",
+  7:  "https://upload.wikimedia.org/wikipedia/en/e/e0/7_Habits_of_Highly_Effective_People.jpg",
+  8:  "https://m.media-amazon.com/images/I/91bYsX41DVL.jpg",
+  9:  "https://m.media-amazon.com/images/I/81l3rZK4lnL.jpg",
+  10: "https://m.media-amazon.com/images/I/71h9oi8BWHL.jpg",
+  11: "https://m.media-amazon.com/images/I/71VRxNBCALL.jpg",
+  12: "https://m.media-amazon.com/images/I/81BPJRQT4eL.jpg"
+};
+
+const BOOKS_RAW = [
+  {id:1,  title:"Start with Why",                           subtitle:"How Great Leaders Inspire Everyone to Take Action",   author:"Simon Sinek"},
+  {id:2,  title:"Good to Great",                            subtitle:"Why Some Companies Make the Leap...and Others Don't", author:"James C. Collins"},
+  {id:3,  title:"Built to Last",                            subtitle:"Successful Habits of Visionary Companies",            author:"James C. Collins & Jerry I. Porras"},
+  {id:4,  title:"Blue Ocean Strategy",                      subtitle:"",                                                    author:"Renée Mauborgne & W. Chan Kim"},
+  {id:5,  title:"Great by Choice",                          subtitle:"",                                                    author:"James C. Collins"},
+  {id:6,  title:"Hidden Potential",                         subtitle:"The Science of Achieving Greater Things",             author:"Adam Grant"},
+  {id:7,  title:"The 7 Habits of Highly Effective People",  subtitle:"",                                                    author:"Stephen Covey"},
+  {id:8,  title:"Atomic Habits",                            subtitle:"Build Good Habits & Break Bad Ones",                  author:"James Clear"},
+  {id:9,  title:"Ikigai",                                   subtitle:"The Japanese Secret to a Long and Happy Life",        author:"Francesc Miralles & Hector Garcia"},
+  {id:10, title:"Finding Flow",                             subtitle:"The Psychology of Engagement With Everyday Life",     author:"Mihaly Csikszentmihalyi"},
+  {id:11, title:"High Performance Habits",                  subtitle:"How Extraordinary People Become That Way",            author:"Brendon Burchard"},
+  {id:12, title:"Turn the Ship Around!",                    subtitle:"A True Story of Turning Followers into Leaders",      author:"L. David Marquet"}
+];
+
+const STORAGE_KEY = 'ibl_library_v5';
+function loadState() {
+  try { const r = localStorage.getItem(STORAGE_KEY); if (r) return JSON.parse(r); } catch(e){}
+  return { books: BOOKS_RAW.map(b => ({...b, checkedOutBy:null, checkedOutDate:null, requests:[]})), currentUser:'' };
+}
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+let state = loadState();
+let currentTab = 'catalog';
+let pendingBookId = null;
+
+const userSel = document.getElementById('currentUser');
+EMPLOYEES.forEach(e => { const o = document.createElement('option'); o.value = e; o.textContent = e; userSel.appendChild(o); });
+if (state.currentUser) userSel.value = state.currentUser;
+
+function onUserChange() { state.currentUser = userSel.value; saveState(); render(); }
+function daysSince(d) { if (!d) return 0; return Math.floor((Date.now() - new Date(d).getTime()) / 86400000); }
+
+function updateStats() {
+  document.getElementById('statAvailable').textContent = state.books.filter(b => !b.checkedOutBy).length;
+  document.getElementById('statCheckedOut').textContent = state.books.filter(b => b.checkedOutBy).length;
+  document.getElementById('statRequests').textContent = state.books.reduce((s,b) => s + b.requests.length, 0);
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['catalog','mine','admin'][i] === tab));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  render();
+}
+
+function render() { updateStats(); if (currentTab==='catalog') renderCatalog(); else if (currentTab==='mine') renderMine(); else renderAdmin(); }
+
+function renderCatalog() {
+  const q = (document.getElementById('searchInput').value||'').toLowerCase();
+  const filter = document.getElementById('filterStatus').value;
+  const user = state.currentUser;
+  const grid = document.getElementById('bookGrid');
+  let books = state.books.filter(b => {
+    const mq = !q || b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q) || b.subtitle.toLowerCase().includes(q);
+    const mf = !filter || (filter==='available' ? !b.checkedOutBy : !!b.checkedOutBy);
+    return mq && mf;
+  });
+  if (!books.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📭</div><p>No books match your search.</p></div>`; return; }
+
+  grid.innerHTML = books.map(b => {
+    const isOut = !!b.checkedOutBy;
+    const days = isOut ? daysSince(b.checkedOutDate) : 0;
+    const isMyBook = b.checkedOutBy === user;
+    const hasRequested = user && b.requests.includes(user);
+    const cover = BOOK_COVERS[b.id];
+
+    let footerBtns = '';
+    if (!user) footerBtns = `<button class="btn btn-primary" disabled style="font-size:0.72rem">Select name first</button>`;
+    else if (isMyBook) footerBtns = `<button class="btn btn-danger" onclick="openReturn(${b.id})">↩ Return</button>`;
+    else if (!isOut) footerBtns = `<button class="btn btn-primary" onclick="openCheckout(${b.id})">Borrow</button>`;
+    else if (hasRequested) footerBtns = `<button class="btn btn-outline" disabled>✓ On Waitlist</button>`;
+    else footerBtns = `<button class="btn btn-cyan" onclick="openRequest(${b.id})" style="color:var(--navy-dark)">Request</button>`;
+
+    const reqLine = b.requests.length ? `<div class="requests-list"><div class="requests-list-title">Waitlist (${b.requests.length}):</div>${b.requests.map(r=>`<span class="req-chip">${r}</span>`).join('')}</div>` : '';
+    const whoRow = isOut ? `<div class="who-row">👤 <span class="who-name">${b.checkedOutBy}</span><span class="days-badge${days>14?' overdue':''}">${days===0?'Today':days+' day'+(days!==1?'s':'')}${days>14?' ⚠️':''}</span></div>` : '';
+
+    return `<div class="book-card">
+      <div class="book-cover-wrap">
+        <img src="${cover}" alt="${b.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="book-cover-placeholder">📖</div>
+        <div class="status-ribbon ${isOut?'':'available'}">${isOut?'CHECKED OUT':'AVAILABLE'}</div>
+      </div>
+      <div class="book-body">
+        <div class="book-number">Book #${String(b.id).padStart(2,'0')}</div>
+        <div class="book-title">${b.title}</div>
+        <div class="book-author">${b.author}</div>
+        <div class="book-status-row"><span class="badge ${isOut?'checked-out':'available'}">${isOut?'📤 Out':'✅ Available'}</span></div>
+      </div>
+      ${whoRow}${reqLine}
+      <div class="book-footer">${footerBtns}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderMine() {
+  const user = state.currentUser;
+  const el = document.getElementById('mineContent');
+  if (!user) { el.innerHTML = `<div class="empty-state"><div class="icon">👤</div><p>Please select your name at the top.</p></div>`; return; }
+  const myBooks = state.books.filter(b => b.checkedOutBy === user);
+  const myReqs  = state.books.filter(b => b.requests.includes(user));
+  let html = `<div class="section-title">📚 Currently With Me (${myBooks.length})</div>`;
+  if (!myBooks.length) html += `<div class="empty-state" style="padding:28px 0 40px"><div class="icon">📭</div><p>No books checked out.</p></div>`;
+  else html += `<table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Author</th><th>Days With You</th><th>Action</th></tr></thead><tbody>
+    ${myBooks.map(b => { const d=daysSince(b.checkedOutDate); return `<tr><td>${b.id}</td><td><strong>${b.title}</strong></td><td style="color:var(--text-muted)">${b.author}</td><td><span class="days-badge${d>14?' overdue':''}">${d===0?'Today':d+' day'+(d!==1?'s':'')}${d>14?' ⚠️':''}</span></td><td><button class="btn btn-danger btn-sm" onclick="openReturn(${b.id})">Return</button></td></tr>`; }).join('')}
+  </tbody></table>`;
+  html += `<div class="section-title">🔖 My Waitlist Requests (${myReqs.length})</div>`;
+  if (!myReqs.length) html += `<div class="empty-state" style="padding:20px 0"><div class="icon">📋</div><p>No pending requests.</p></div>`;
+  else html += `<table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Currently With</th><th>Queue</th><th>Action</th></tr></thead><tbody>
+    ${myReqs.map(b => { const pos=b.requests.indexOf(user)+1; return `<tr><td>${b.id}</td><td><strong>${b.title}</strong></td><td style="color:var(--text-muted)">${b.checkedOutBy||'—'}</td><td><span class="badge requested">#${pos} in queue</span></td><td><button class="btn btn-outline btn-sm" onclick="cancelRequest(${b.id})">Cancel</button></td></tr>`; }).join('')}
+  </tbody></table>`;
+  el.innerHTML = html;
+}
+
+function renderAdmin() {
+  const el = document.getElementById('adminContent');
+  let html = `<div class="section-title">🗂 Full Library Status</div>
+  <table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Author</th><th>Status</th><th>With</th><th>Days Out</th><th>Waitlist</th><th>Actions</th></tr></thead><tbody>`;
+  state.books.forEach(b => {
+    const d = b.checkedOutBy ? daysSince(b.checkedOutDate) : null;
+    const dc = d!==null ? `<span class="days-badge${d>14?' overdue':''}">${d===0?'Today':d+' day'+(d!==1?'s':'')}${d>14?' ⚠️':''}</span>` : '—';
+    const sb = b.checkedOutBy ? `<span class="badge checked-out">Checked Out</span>` : `<span class="badge available">Available</span>`;
+    const ab = b.checkedOutBy ? `<button class="btn btn-danger btn-sm" onclick="adminReturn(${b.id})">Return</button>` : `<button class="btn btn-primary btn-sm" onclick="openAssign(${b.id})">Assign</button>`;
+    const wl = b.requests.length ? b.requests.map(r=>`<span class="req-chip">${r}</span>`).join('') : '<span style="color:var(--text-muted)">—</span>';
+    html += `<tr><td>${b.id}</td><td><strong>${b.title}</strong></td><td style="color:var(--text-muted);font-size:0.78rem">${b.author}</td><td>${sb}</td><td>${b.checkedOutBy||'—'}</td><td>${dc}</td><td>${wl}</td><td>${ab}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+  const active = EMPLOYEES.filter(emp => state.books.some(b => b.checkedOutBy===emp || b.requests.includes(emp)));
+  if (active.length) {
+    html += `<div class="section-title">👥 Employee Overview</div><div class="admin-grid">`;
+    active.forEach(emp => {
+      const holding = state.books.filter(b => b.checkedOutBy===emp);
+      const waiting = state.books.filter(b => b.requests.includes(emp));
+      html += `<div class="admin-card"><h3>👤 ${emp}</h3>
+        ${holding.map(b=>`<div class="admin-row"><span>${b.title}</span><span class="days-badge">${daysSince(b.checkedOutDate)}d</span></div>`).join('')}
+        ${waiting.map(b=>`<div class="admin-row"><span style="color:var(--navy)">${b.title}</span><span class="req-chip">waiting</span></div>`).join('')}
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+}
+
+function openCheckout(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('checkoutModalDesc').textContent=`Borrow "${b.title}" by ${b.author}. Recorded with today's date.`; document.getElementById('checkoutModal').classList.add('open'); }
+function confirmCheckout() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=state.currentUser; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==state.currentUser); saveState(); closeModal('checkoutModal'); showToast(`📗 "${b.title}" is now with you!`); render(); }
+function openReturn(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); const d=daysSince(b.checkedOutDate); document.getElementById('returnModalDesc').textContent=`Return "${b.title}"? You've had it for ${d===0?'less than a day':d+' day'+(d!==1?'s':'')}.`; document.getElementById('returnModal').classList.add('open'); }
+function confirmReturn() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=null; b.checkedOutDate=null; saveState(); closeModal('returnModal'); showToast(`↩️ "${b.title}" returned. Thank you!`,'cyan'); render(); }
+function adminReturn(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('returnModalDesc').textContent=`Mark "${b.title}" as returned from ${b.checkedOutBy}?`; document.getElementById('returnModal').classList.add('open'); }
+function openRequest(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('requestModalDesc').textContent=`"${b.title}" is with ${b.checkedOutBy}. You'll be #${b.requests.length+1} on the waitlist.`; document.getElementById('requestModal').classList.add('open'); }
+function confirmRequest() { const b=state.books.find(x=>x.id===pendingBookId); if(!b.requests.includes(state.currentUser)) b.requests.push(state.currentUser); saveState(); closeModal('requestModal'); showToast(`🔖 Added to waitlist for "${b.title}"!`,'cyan'); render(); }
+function cancelRequest(id) { const b=state.books.find(x=>x.id===id); b.requests=b.requests.filter(r=>r!==state.currentUser); saveState(); showToast(`Removed from waitlist`); render(); }
+function openAssign(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('assignModalDesc').textContent=`Assign "${b.title}" to:`; const sel=document.getElementById('assignSelect'); sel.innerHTML=EMPLOYEES.map(e=>`<option value="${e}">${e}</option>`).join(''); document.getElementById('assignModal').classList.add('open'); }
+function confirmAssign() { const emp=document.getElementById('assignSelect').value; const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=emp; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==emp); saveState(); closeModal('assignModal'); showToast(`📗 "${b.title}" assigned to ${emp}`); render(); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); pendingBookId=null; }
+
+document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); }));
+
+let toastTimer;
+function showToast(msg, type='') { const t=document.getElementById('toast'); t.textContent=msg; t.className='show '+type; clearTimeout(toastTimer); toastTimer=setTimeout(()=>{t.className='';},3200); }
+
+render();
+</script>
+</body>
+</html>
