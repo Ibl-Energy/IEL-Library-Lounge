@@ -290,6 +290,16 @@
     border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif;
     font-size: 0.9rem; margin-bottom: 18px; outline: none; cursor: pointer; color: var(--text);
   }
+  .modal-input {
+    width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem; margin-bottom: 12px; outline: none; color: var(--text);
+    transition: border 0.2s;
+  }
+  .modal-input:focus { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(0,32,96,0.08); }
+  .login-error { color: #c0006f; font-size: 0.8rem; min-height: 20px; margin-bottom: 10px; }
+  .admin-logout-bar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
+  .admin-lock-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(255,81,161,0.08); border:1px solid rgba(255,81,161,0.25); color:#c0006f; font-size:0.78rem; font-weight:600; padding:5px 14px; border-radius:99px; }
 
   @media (max-width: 700px) {
     main { padding: 18px 14px; }
@@ -399,6 +409,20 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="adminLoginModal">
+  <div class="modal" style="border-top-color:var(--pink)">
+    <h2>🔐 Admin Access</h2>
+    <p>This area is restricted. Enter your admin credentials to continue.</p>
+    <input type="email" id="adminEmail" class="modal-input" placeholder="Email address" onkeydown="if(event.key==='Enter')document.getElementById('adminPassword').focus()">
+    <input type="password" id="adminPassword" class="modal-input" placeholder="Password" onkeydown="if(event.key==='Enter')submitAdminLogin()">
+    <div class="login-error" id="adminLoginError"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('adminLoginModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAdminLogin()">Login</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -432,6 +456,10 @@ const BOOKS_RAW = [
   {id:12, title:"Turn the Ship Around!",                    subtitle:"A True Story of Turning Followers into Leaders",      author:"L. David Marquet"}
 ];
 
+const ADMIN_EMAIL = "delphine.laguette@ibl-energy.com";
+const ADMIN_PWD   = "REDACTED";
+let adminAuthenticated = false;
+
 const STORAGE_KEY = 'ibl_library_v5';
 function loadState() {
   try { const r = localStorage.getItem(STORAGE_KEY); if (r) return JSON.parse(r); } catch(e){}
@@ -457,11 +485,40 @@ function updateStats() {
 }
 
 function switchTab(tab) {
+  if (tab === 'admin' && !adminAuthenticated) { openAdminLogin(); return; }
   currentTab = tab;
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['catalog','mine','tracker','admin'][i] === tab));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-'+tab).classList.add('active');
   render();
+}
+
+function openAdminLogin() {
+  document.getElementById('adminEmail').value = '';
+  document.getElementById('adminPassword').value = '';
+  document.getElementById('adminLoginError').textContent = '';
+  document.getElementById('adminLoginModal').classList.add('open');
+  setTimeout(() => document.getElementById('adminEmail').focus(), 100);
+}
+
+function submitAdminLogin() {
+  const email = document.getElementById('adminEmail').value.trim().toLowerCase();
+  const pwd   = document.getElementById('adminPassword').value;
+  if (email === ADMIN_EMAIL && pwd === ADMIN_PWD) {
+    adminAuthenticated = true;
+    closeModal('adminLoginModal');
+    switchTab('admin');
+  } else {
+    document.getElementById('adminLoginError').textContent = 'Incorrect email or password.';
+    document.getElementById('adminPassword').value = '';
+    document.getElementById('adminPassword').focus();
+  }
+}
+
+function adminLogout() {
+  adminAuthenticated = false;
+  switchTab('catalog');
+  showToast('Logged out of Admin', 'cyan');
 }
 
 function render() { updateStats(); if (currentTab==='catalog') renderCatalog(); else if (currentTab==='mine') renderMine(); else if (currentTab==='tracker') renderTracker(); else renderAdmin(); }
@@ -534,7 +591,8 @@ function renderMine() {
 
 function renderAdmin() {
   const el = document.getElementById('adminContent');
-  let html = `<div class="section-title">🗂 Full Library Status</div>
+  let html = `<div class="admin-logout-bar"><span class="admin-lock-badge">🔐 Logged in as Delphine</span> <button class="btn btn-outline btn-sm" style="margin-left:10px;flex:none" onclick="adminLogout()">Log out</button></div>
+  <div class="section-title">🗂 Full Library Status</div>
   <table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Author</th><th>Status</th><th>With</th><th>Days Out</th><th>Waitlist</th><th>Actions</th></tr></thead><tbody>`;
   state.books.forEach(b => {
     const d = b.checkedOutBy ? daysSince(b.checkedOutDate) : null;
