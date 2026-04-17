@@ -198,6 +198,60 @@
   .admin-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
   .admin-row:last-child { border-bottom: none; }
 
+  /* Tracker page */
+  .tracker-section-label {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 600;
+    color: var(--navy); margin: 28px 0 14px;
+  }
+  .tracker-section-label .tcount {
+    background: var(--navy); color: white;
+    font-family: 'DM Sans', sans-serif; font-size: 0.72rem; font-weight: 700;
+    padding: 2px 10px; border-radius: 99px;
+  }
+  .tracker-section-label .tcount.pink { background: var(--pink); }
+  .tracker-section-label .tcount.cyan { background: #007a80; }
+  .tracker-list { display: flex; flex-direction: column; gap: 10px; }
+  .tracker-row {
+    background: white; border-radius: var(--radius); border: 1.5px solid var(--border);
+    box-shadow: var(--shadow); display: flex; align-items: center; gap: 0;
+    overflow: hidden; transition: box-shadow 0.2s;
+  }
+  .tracker-row:hover { box-shadow: var(--shadow-hover); }
+  .tracker-cover {
+    width: 54px; height: 72px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--navy), var(--navy-light));
+    overflow: hidden;
+  }
+  .tracker-cover img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
+  .tracker-cover-ph { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:1.4rem; }
+  .tracker-info { flex: 1; padding: 12px 16px; min-width: 0; }
+  .tracker-num { font-size: 0.62rem; color: var(--cyan); font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 2px; }
+  .tracker-title { font-family: 'Playfair Display', serif; font-size: 0.94rem; font-weight: 600; color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tracker-author { font-size: 0.74rem; color: var(--text-muted); font-style: italic; margin-top: 1px; }
+  .tracker-status { padding: 12px 20px; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; min-width: 180px; }
+  .tracker-person { display: flex; align-items: center; gap: 7px; }
+  .tracker-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--pink), var(--cyan));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; font-weight: 700; color: white; flex-shrink: 0;
+  }
+  .tracker-name { font-weight: 600; font-size: 0.86rem; color: var(--navy); }
+  .tracker-since { font-size: 0.74rem; color: var(--text-muted); }
+  .tracker-days {
+    font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 99px;
+    background: var(--cream); border: 1px solid var(--border); color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .tracker-days.overdue { background: rgba(255,81,161,0.1); border-color: rgba(255,81,161,0.3); color: #c0006f; }
+  .tracker-avail { padding: 12px 20px; flex-shrink: 0; }
+  .tracker-waitlist { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; }
+  @media (max-width: 600px) {
+    .tracker-status { min-width: 140px; padding: 10px 12px; }
+    .tracker-since { display: none; }
+  }
+
   .page { display: none; }
   .page.active { display: block; }
 
@@ -282,6 +336,7 @@
 <div class="tabs">
   <button class="tab active" onclick="switchTab('catalog')">📖 All Books</button>
   <button class="tab" onclick="switchTab('mine')">My Activity</button>
+  <button class="tab" onclick="switchTab('tracker')">📊 Book Tracker</button>
   <button class="tab" onclick="switchTab('admin')">Admin View</button>
 </div>
 
@@ -298,6 +353,7 @@
     <div class="book-grid" id="bookGrid"></div>
   </div>
   <div class="page" id="page-mine"><div id="mineContent"></div></div>
+  <div class="page" id="page-tracker"><div id="trackerContent"></div></div>
   <div class="page" id="page-admin"><div id="adminContent"></div></div>
 </main>
 
@@ -402,13 +458,13 @@ function updateStats() {
 
 function switchTab(tab) {
   currentTab = tab;
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['catalog','mine','admin'][i] === tab));
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['catalog','mine','tracker','admin'][i] === tab));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-'+tab).classList.add('active');
   render();
 }
 
-function render() { updateStats(); if (currentTab==='catalog') renderCatalog(); else if (currentTab==='mine') renderMine(); else renderAdmin(); }
+function render() { updateStats(); if (currentTab==='catalog') renderCatalog(); else if (currentTab==='mine') renderMine(); else if (currentTab==='tracker') renderTracker(); else renderAdmin(); }
 
 function renderCatalog() {
   const q = (document.getElementById('searchInput').value||'').toLowerCase();
@@ -502,6 +558,70 @@ function renderAdmin() {
     });
     html += `</div>`;
   }
+  el.innerHTML = html;
+}
+
+function renderTracker() {
+  const el = document.getElementById('trackerContent');
+  const checkedOut = state.books.filter(b => b.checkedOutBy).sort((a,b) => new Date(a.checkedOutDate)-new Date(b.checkedOutDate));
+  const available  = state.books.filter(b => !b.checkedOutBy);
+
+  function coverImg(id) {
+    const src = BOOK_COVERS[id];
+    return src
+      ? `<img src="${src}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`+`<div class="tracker-cover-ph" style="display:none">📖</div>`
+      : `<div class="tracker-cover-ph">📖</div>`;
+  }
+
+  function checkedOutRow(b) {
+    const days = daysSince(b.checkedOutDate);
+    const overdue = days > 14;
+    const initials = b.checkedOutBy.slice(0,2).toUpperCase();
+    const dateStr = new Date(b.checkedOutDate).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    const wl = b.requests.length ? `<div class="tracker-waitlist">🔖 ${b.requests.length} on waitlist</div>` : '';
+    return `<div class="tracker-row">
+      <div class="tracker-cover">${coverImg(b.id)}</div>
+      <div class="tracker-info">
+        <div class="tracker-num">Book #${String(b.id).padStart(2,'0')}</div>
+        <div class="tracker-title">${b.title}</div>
+        <div class="tracker-author">${b.author}</div>
+      </div>
+      <div class="tracker-status">
+        <div class="tracker-person">
+          <div class="tracker-avatar">${initials}</div>
+          <span class="tracker-name">${b.checkedOutBy}</span>
+        </div>
+        <div class="tracker-since">Since ${dateStr}</div>
+        <div class="tracker-days${overdue?' overdue':''}">${days===0?'Today':days+' day'+(days!==1?'s':'')}${overdue?' ⚠️':''}</div>
+        ${wl}
+      </div>
+    </div>`;
+  }
+
+  function availableRow(b) {
+    const wl = b.requests.length ? `<span class="req-chip">🔖 ${b.requests.length} waiting</span>` : `<span class="badge available">✅ Free</span>`;
+    return `<div class="tracker-row">
+      <div class="tracker-cover">${coverImg(b.id)}</div>
+      <div class="tracker-info">
+        <div class="tracker-num">Book #${String(b.id).padStart(2,'0')}</div>
+        <div class="tracker-title">${b.title}</div>
+        <div class="tracker-author">${b.author}</div>
+      </div>
+      <div class="tracker-avail">${wl}</div>
+    </div>`;
+  }
+
+  const overdueCount = checkedOut.filter(b=>daysSince(b.checkedOutDate)>14).length;
+  let html = '';
+  if (checkedOut.length) {
+    html += `<div class="tracker-section-label">📤 Currently Checked Out <span class="tcount pink">${checkedOut.length}</span>${overdueCount?` <span class="tcount" style="background:#c0006f">⚠️ ${overdueCount} overdue</span>`:''}</div>`;
+    html += `<div class="tracker-list">${checkedOut.map(checkedOutRow).join('')}</div>`;
+  }
+  html += `<div class="tracker-section-label">✅ Available <span class="tcount cyan">${available.length}</span></div>`;
+  html += available.length
+    ? `<div class="tracker-list">${available.map(availableRow).join('')}</div>`
+    : `<div class="empty-state" style="padding:24px 0"><div class="icon">📭</div><p>All books are currently checked out.</p></div>`;
+
   el.innerHTML = html;
 }
 
