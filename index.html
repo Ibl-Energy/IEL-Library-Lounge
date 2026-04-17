@@ -499,7 +499,7 @@ function renderCatalog() {
       <div class="book-cover-wrap">
         <img src="${cover}" alt="${b.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="book-cover-placeholder">📖</div>
-        <div class="status-ribbon ${isOut?'':'available'}">${isOut?'CHECKED OUT':'AVAILABLE'}</div>
+        <div class="status-ribbon ${isOut?'':'available'}">${isOut?b.checkedOutBy:'AVAILABLE'}</div>
       </div>
       <div class="book-body">
         <div class="book-number">Book #${String(b.id).padStart(2,'0')}</div>
