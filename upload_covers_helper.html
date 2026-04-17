@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Upload Book Covers to imgbb</title>
+<style>
+  body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; background: #f0f4ff; }
+  h1 { color: #002060; }
+  button { background: #002060; color: white; border: none; padding: 12px 28px; font-size: 1rem; border-radius: 8px; cursor: pointer; margin-top: 10px; }
+  button:hover { background: #0a3080; }
+  button:disabled { background: #aaa; cursor: not-allowed; }
+  #log { background: white; border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-top: 20px; font-family: monospace; font-size: 0.85rem; min-height: 200px; white-space: pre-wrap; }
+  #output { background: #002060; color: #00D0DA; border-radius: 8px; padding: 16px; margin-top: 20px; font-family: monospace; font-size: 0.82rem; white-space: pre-wrap; display: none; }
+  .ok  { color: #00a060; }
+  .err { color: #c0006f; }
+  .info { color: #555; }
+</style>
+</head>
+<body>
+<h1>📚 Book Cover Uploader</h1>
+<p>This page uploads all 12 book covers to your imgbb account and gives you the updated <code>BOOK_COVERS</code> object to paste into <code>index.html</code>.</p>
+<p><strong>API Key:</strong> <code>89da7fcc2aaa8eb72b49d1f09e0167d7</code></p>
+<button id="startBtn" onclick="startUpload()">Start Upload</button>
+<div id="log">Press "Start Upload" to begin…</div>
+<div id="output"></div>
+
+<script>
+const API_KEY = "89da7fcc2aaa8eb72b49d1f09e0167d7";
+
+const BOOKS = [
+  { id: 1,  name: "Start_with_Why",          isbn: "9781591846444" },
+  { id: 2,  name: "Good_to_Great",           isbn: "9780066620992" },
+  { id: 3,  name: "Built_to_Last",           isbn: "9780060566104" },
+  { id: 4,  name: "Blue_Ocean_Strategy",     isbn: "9781625274496" },
+  { id: 5,  name: "Great_by_Choice",         isbn: "9780062120991" },
+  { id: 6,  name: "Hidden_Potential",        isbn: "9780593656136" },
+  { id: 7,  name: "7_Habits",               isbn: "9780743269513" },
+  { id: 8,  name: "Atomic_Habits",           isbn: "9780735211292" },
+  { id: 9,  name: "Ikigai",                  isbn: "9780143130727" },
+  { id: 10, name: "Finding_Flow",            isbn: "9780465024117" },
+  { id: 11, name: "High_Performance_Habits", isbn: "9781401952853" },
+  { id: 12, name: "Turn_the_Ship_Around",    isbn: "9781591846406" },
+];
+
+// Fallback URLs if Open Library doesn't have a cover
+const FALLBACK = {
+  1:  "https://upload.wikimedia.org/wikipedia/en/9/9e/Start_with_why.jpg",
+  2:  "https://upload.wikimedia.org/wikipedia/en/d/d7/Good_to_Great.jpg",
+  4:  "https://upload.wikimedia.org/wikipedia/en/e/e8/Blue_Ocean_Strategy_2015.jpg",
+  7:  "https://upload.wikimedia.org/wikipedia/en/e/e0/7_Habits_of_Highly_Effective_People.jpg",
+};
+
+const logEl = document.getElementById("log");
+const outEl = document.getElementById("output");
+
+function log(msg, cls="") {
+  logEl.innerHTML += `<span class="${cls}">${msg}\n</span>`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchImageAsBase64(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const blob = await resp.blob();
+  if (blob.size < 500) throw new Error("Image too small (placeholder)");
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function uploadToImgbb(base64, name) {
+  const form = new FormData();
+  form.append("key", API_KEY);
+  form.append("image", base64);
+  form.append("name", name);
+  const resp = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: form });
+  const data = await resp.json();
+  if (!data.success) throw new Error(JSON.stringify(data));
+  return data.data.url;
+}
+
+async function startUpload() {
+  document.getElementById("startBtn").disabled = true;
+  logEl.textContent = "";
+  outEl.style.display = "none";
+
+  const results = {};
+
+  for (const book of BOOKS) {
+    log(`[${book.id}/12] ${book.name} … `, "info");
+    const olUrl = `https://covers.openlibrary.org/b/isbn/${book.isbn}-L.jpg`;
+    const fallback = FALLBACK[book.id] || null;
+
+    let base64 = null;
+
+    // Try Open Library first
+    try {
+      base64 = await fetchImageAsBase64(olUrl);
+      log(`  ✓ fetched from Open Library`, "ok");
+    } catch (e) {
+      log(`  Open Library failed (${e.message})`, "err");
+      if (fallback) {
+        try {
+          base64 = await fetchImageAsBase64(fallback);
+          log(`  ✓ fetched from fallback`, "ok");
+        } catch (e2) {
+          log(`  Fallback also failed (${e2.message})`, "err");
+        }
+      }
+    }
+
+    if (!base64) {
+      log(`  ✗ Skipped — no image found`, "err");
+      results[book.id] = null;
+      await sleep(300);
+      continue;
+    }
+
+    // Upload to imgbb
+    try {
+      const url = await uploadToImgbb(base64, book.name);
+      log(`  ✓ Uploaded → ${url}`, "ok");
+      results[book.id] = url;
+    } catch (e) {
+      log(`  ✗ Upload failed: ${e.message}`, "err");
+      results[book.id] = null;
+    }
+
+    await sleep(400);
+  }
+
+  // Build output
+  const succeeded = Object.values(results).filter(Boolean).length;
+  log(`\nDone! ${succeeded}/12 uploaded successfully.`, "ok");
+
+  let js = "const BOOK_COVERS = {\n";
+  for (let i = 1; i <= 12; i++) {
+    const url = results[i];
+    if (url) {
+      js += `  ${i}:  "${url}",\n`;
+    } else {
+      js += `  ${i}:  null,  // upload failed — add manually\n`;
+    }
+  }
+  js += "};";
+
+  outEl.style.display = "block";
+  outEl.textContent = "// Paste this into index.html, replacing the existing BOOK_COVERS object:\n\n" + js;
+  document.getElementById("startBtn").disabled = false;
+}
+</script>
+</body>
+</html>
