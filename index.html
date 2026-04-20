@@ -492,7 +492,7 @@ document.getElementById('bookGrid').innerHTML = '<div class="empty-state" style=
 async function fetchBooks() {
   const res = await fetch(`${DB_URL}/books.json`);
   const data = await res.json();
-  state.books = data ? Object.values(data).filter(Boolean).sort((a,b) => a.id - b.id) : [];
+  state.books = data ? Object.values(data).filter(Boolean).map(b => ({...b, requests: b.requests || []})).sort((a,b) => a.id - b.id) : [];
   render();
 }
 
