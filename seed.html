@@ -50,21 +50,43 @@ const BOOKS = [
 const log = document.getElementById('log');
 function write(msg, cls='') { log.innerHTML += `<span class="${cls}">${msg}\n</span>`; }
 
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out after ${ms/1000}s — ${label}`)), ms))
+  ]);
+}
+
 async function seed() {
   document.getElementById('btn').disabled = true;
   log.textContent = '';
-  write('Starting…');
+
+  write('Step 1: Connecting to Firebase…');
+  try {
+    await withTimeout(
+      db.collection('books').limit(1).get(),
+      8000, 'could not reach Firestore'
+    );
+    write('✓ Connected!', 'ok');
+  } catch(e) {
+    write(`✗ Connection failed: ${e.message}`, 'err');
+    write('\nPossible causes:\n• Firestore not enabled in Firebase Console\n• Browser is blocking the request\n• Rules issue');
+    document.getElementById('btn').disabled = false;
+    return;
+  }
+
+  write('Step 2: Writing books…');
   try {
     const batch = db.batch();
     BOOKS.forEach(b => {
-      const ref = db.collection('books').doc(String(b.id));
-      batch.set(ref, { ...b, checkedOutBy: null, checkedOutDate: null, requests: [] });
+      batch.set(db.collection('books').doc(String(b.id)),
+        { ...b, checkedOutBy: null, checkedOutDate: null, requests: [] });
     });
-    await batch.commit();
+    await withTimeout(batch.commit(), 10000, 'write timed out');
     write(`✓ All ${BOOKS.length} books written to Firestore!`, 'ok');
-    write('\nYou can now close this page and open the main app.', 'ok');
+    write('\nDone! Close this page and open index.html.', 'ok');
   } catch(e) {
-    write(`✗ Error: ${e.message}`, 'err');
+    write(`✗ Write failed: ${e.message}`, 'err');
     document.getElementById('btn').disabled = false;
   }
 }
