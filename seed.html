@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>IEL Library — Seed Firestore</title>
+<title>IEL Library — Seed Database</title>
 <style>
   body { font-family: sans-serif; max-width: 600px; margin: 60px auto; padding: 0 20px; background: #f0f4ff; }
   h1 { color: #002060; }
@@ -15,15 +15,13 @@
 </style>
 </head>
 <body>
-<h1>📚 IEL Library — Firestore Seeder</h1>
-<p>Click the button below to populate your Firestore database with all 11 books.</p>
+<h1>📚 IEL Library — Database Seeder</h1>
+<p>Click the button below to populate your database with all 11 books. Only needs to be done once.</p>
 <button id="btn" onclick="seed()">Seed Database</button>
 <div id="log">Ready. Press the button to start.</div>
 
 <script>
-const PROJECT = "iel-library-lounge";
-const API_KEY = "AIzaSyC4P8pH8S7XNsaIGZcv8Zx_lUbHAAis4uo";
-const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
+const DB_URL = "https://iel-library-lounge-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 const BOOKS = [
   {id:1,  title:"Start with Why",                          subtitle:"How Great Leaders Inspire Everyone to Take Action",   author:"Simon Sinek"},
@@ -42,48 +40,23 @@ const BOOKS = [
 const log = document.getElementById('log');
 function write(msg, cls='') { log.innerHTML += `<span class="${cls}">${msg}\n</span>`; }
 
-function toDoc(b) {
-  return {
-    fields: {
-      id:            { integerValue: b.id },
-      title:         { stringValue: b.title },
-      subtitle:      { stringValue: b.subtitle },
-      author:        { stringValue: b.author },
-      checkedOutBy:  { nullValue: null },
-      checkedOutDate:{ nullValue: null },
-      requests:      { arrayValue: { values: [] } }
-    }
-  };
-}
-
 async function seed() {
   document.getElementById('btn').disabled = true;
   log.textContent = '';
-  write('Connecting via REST API…');
-
-  let ok = 0;
-  for (const b of BOOKS) {
-    try {
-      const res = await fetch(`${BASE}/books/${b.id}?key=${API_KEY}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(toDoc(b))
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error?.message || res.statusText);
-      }
-      ok++;
-      write(`  ✓ [${ok}/${BOOKS.length}] ${b.title}`, 'ok');
-    } catch(e) {
-      write(`  ✗ ${b.title}: ${e.message}`, 'err');
-    }
-  }
-
-  if (ok === BOOKS.length) {
-    write(`\n✓ All ${BOOKS.length} books written! Close this page and open index.html.`, 'ok');
-  } else {
-    write(`\n${ok}/${BOOKS.length} books written. Check errors above.`, 'err');
+  write('Writing books to Realtime Database…');
+  try {
+    const data = {};
+    BOOKS.forEach(b => { data[b.id] = { ...b, checkedOutBy: null, checkedOutDate: null, requests: [] }; });
+    const res = await fetch(`${DB_URL}/books.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || res.statusText); }
+    write(`✓ All ${BOOKS.length} books written successfully!`, 'ok');
+    write('\nDone! Close this page and open index.html.', 'ok');
+  } catch(e) {
+    write(`✗ Error: ${e.message}`, 'err');
     document.getElementById('btn').disabled = false;
   }
 }

@@ -6,7 +6,7 @@
 <title>IEL Library Lounge</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <style>
   :root {
     --navy:   #002060;
@@ -432,13 +432,14 @@
 const firebaseConfig = {
   apiKey: "AIzaSyC4P8pH8S7XNsaIGZcv8Zx_lUbHAAis4uo",
   authDomain: "iel-library-lounge.firebaseapp.com",
+  databaseURL: "https://iel-library-lounge-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "iel-library-lounge",
   storageBucket: "iel-library-lounge.firebasestorage.app",
   messagingSenderId: "994424847957",
   appId: "1:994424847957:web:9ab3548c2af9b089459edc"
 };
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const db = firebase.database();
 
 // ── Constants ─────────────────────────────────────────────
 const ADMIN_EMAIL = "delphine.laguette@ibl-energy.com";
@@ -490,45 +491,25 @@ function onUserChange() { state.currentUser = userSel.value; localStorage.setIte
 function daysSince(d) { if (!d) return 0; return Math.floor((Date.now() - new Date(d).getTime()) / 86400000); }
 
 async function saveBook(book) {
-  await db.collection('books').doc(String(book.id)).set(book);
+  await db.ref('books/' + book.id).set(book);
 }
 
 // ── Firebase init: seed if empty, then listen ─────────────
 document.getElementById('bookGrid').innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">⏳</div><p>Connecting to library…</p></div>';
 
-(async () => {
-  try {
-    const snap = await db.collection('books').get();
-    if (snap.empty) {
-      const batch = db.batch();
-      BOOKS_RAW.forEach(b => batch.set(
-        db.collection('books').doc(String(b.id)),
-        { ...b, checkedOutBy: null, checkedOutDate: null, requests: [] }
-      ));
-      await batch.commit();
-    }
-    db.collection('books').onSnapshot(snap => {
-      state.books = snap.docs.map(d => d.data()).sort((a,b) => a.id - b.id);
-      render();
-    }, err => {
-      console.error('Snapshot error:', err);
-      showError(err.message);
-    });
-  } catch(e) {
-    console.error('Init error:', e);
-    showError(e.message);
-  }
-})();
-
-function showError(msg) {
+db.ref('books').on('value', snap => {
+  const data = snap.val();
+  state.books = data ? Object.values(data).sort((a,b) => a.id - b.id) : [];
+  render();
+}, err => {
   document.getElementById('bookGrid').innerHTML = `
     <div class="empty-state" style="grid-column:1/-1">
       <div class="icon">⚠️</div>
       <p><strong>Could not connect to the database.</strong></p>
-      <p style="font-size:0.8rem;margin-top:8px;color:#c0006f">${msg}</p>
+      <p style="font-size:0.8rem;margin-top:8px;color:#c0006f">${err.message}</p>
       <button class="btn btn-primary" style="margin-top:16px;max-width:160px" onclick="location.reload()">Retry</button>
     </div>`;
-}
+});
 
 // ── Stats ─────────────────────────────────────────────────
 function updateStats() {
