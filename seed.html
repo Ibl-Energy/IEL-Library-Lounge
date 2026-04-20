@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>IEL Library — Seed Firestore</title>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+  body { font-family: sans-serif; max-width: 600px; margin: 60px auto; padding: 0 20px; background: #f0f4ff; }
+  h1 { color: #002060; }
+  button { background: #002060; color: white; border: none; padding: 14px 32px; font-size: 1rem; border-radius: 8px; cursor: pointer; margin-top: 16px; }
+  button:hover { background: #0a3080; }
+  button:disabled { background: #aaa; cursor: not-allowed; }
+  #log { background: white; border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-top: 20px; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; min-height: 120px; }
+  .ok  { color: #00a060; }
+  .err { color: #c0006f; }
+</style>
+</head>
+<body>
+<h1>📚 IEL Library — Firestore Seeder</h1>
+<p>Click the button below to populate your Firestore database with all 11 books. Only needs to be done once.</p>
+<button id="btn" onclick="seed()">Seed Database</button>
+<div id="log">Ready. Press the button to start.</div>
+
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyC4P8pH8S7XNsaIGZcv8Zx_lUbHAAis4uo",
+  authDomain: "iel-library-lounge.firebaseapp.com",
+  projectId: "iel-library-lounge",
+  storageBucket: "iel-library-lounge.firebasestorage.app",
+  messagingSenderId: "994424847957",
+  appId: "1:994424847957:web:9ab3548c2af9b089459edc"
+});
+const db = firebase.firestore();
+
+const BOOKS = [
+  {id:1,  title:"Start with Why",                          subtitle:"How Great Leaders Inspire Everyone to Take Action",   author:"Simon Sinek"},
+  {id:2,  title:"Good to Great",                           subtitle:"Why Some Companies Make the Leap...and Others Don't", author:"James C. Collins"},
+  {id:3,  title:"Built to Last",                           subtitle:"Successful Habits of Visionary Companies",            author:"James C. Collins & Jerry I. Porras"},
+  {id:4,  title:"Blue Ocean Strategy",                     subtitle:"",                                                    author:"Renée Mauborgne & W. Chan Kim"},
+  {id:5,  title:"Great by Choice",                         subtitle:"",                                                    author:"James C. Collins"},
+  {id:6,  title:"Hidden Potential",                        subtitle:"The Science of Achieving Greater Things",             author:"Adam Grant"},
+  {id:7,  title:"The 7 Habits of Highly Effective People", subtitle:"",                                                    author:"Stephen Covey"},
+  {id:8,  title:"Atomic Habits",                           subtitle:"Build Good Habits & Break Bad Ones",                  author:"James Clear"},
+  {id:9,  title:"Ikigai",                                  subtitle:"The Japanese Secret to a Long and Happy Life",        author:"Francesc Miralles & Hector Garcia"},
+  {id:11, title:"High Performance Habits",                 subtitle:"How Extraordinary People Become That Way",            author:"Brendon Burchard"},
+  {id:12, title:"Turn the Ship Around!",                   subtitle:"A True Story of Turning Followers into Leaders",      author:"L. David Marquet"}
+];
+
+const log = document.getElementById('log');
+function write(msg, cls='') { log.innerHTML += `<span class="${cls}">${msg}\n</span>`; }
+
+async function seed() {
+  document.getElementById('btn').disabled = true;
+  log.textContent = '';
+  write('Starting…');
+  try {
+    const batch = db.batch();
+    BOOKS.forEach(b => {
+      const ref = db.collection('books').doc(String(b.id));
+      batch.set(ref, { ...b, checkedOutBy: null, checkedOutDate: null, requests: [] });
+    });
+    await batch.commit();
+    write(`✓ All ${BOOKS.length} books written to Firestore!`, 'ok');
+    write('\nYou can now close this page and open the main app.', 'ok');
+  } catch(e) {
+    write(`✗ Error: ${e.message}`, 'err');
+    document.getElementById('btn').disabled = false;
+  }
+}
+</script>
+</body>
+</html>
