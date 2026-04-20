@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IEL Library Lounge</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <style>
   :root {
     --navy:   #002060;
@@ -429,17 +427,7 @@
 
 <script>
 // ── Firebase ──────────────────────────────────────────────
-const firebaseConfig = {
-  apiKey: "AIzaSyC4P8pH8S7XNsaIGZcv8Zx_lUbHAAis4uo",
-  authDomain: "iel-library-lounge.firebaseapp.com",
-  databaseURL: "https://iel-library-lounge-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "iel-library-lounge",
-  storageBucket: "iel-library-lounge.firebasestorage.app",
-  messagingSenderId: "994424847957",
-  appId: "1:994424847957:web:9ab3548c2af9b089459edc"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+const DB_URL = "https://iel-library-lounge-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 // ── Constants ─────────────────────────────────────────────
 const ADMIN_EMAIL = "delphine.laguette@ibl-energy.com";
@@ -491,25 +479,33 @@ function onUserChange() { state.currentUser = userSel.value; localStorage.setIte
 function daysSince(d) { if (!d) return 0; return Math.floor((Date.now() - new Date(d).getTime()) / 86400000); }
 
 async function saveBook(book) {
-  await db.ref('books/' + book.id).set(book);
+  await fetch(`${DB_URL}/books/${book.id}.json`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(book)
+  });
 }
 
 // ── Firebase init: seed if empty, then listen ─────────────
 document.getElementById('bookGrid').innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">⏳</div><p>Connecting to library…</p></div>';
 
-db.ref('books').on('value', snap => {
-  const data = snap.val();
+async function fetchBooks() {
+  const res = await fetch(`${DB_URL}/books.json`);
+  const data = await res.json();
   state.books = data ? Object.values(data).sort((a,b) => a.id - b.id) : [];
   render();
-}, err => {
+}
+
+fetchBooks().catch(() => {
   document.getElementById('bookGrid').innerHTML = `
     <div class="empty-state" style="grid-column:1/-1">
       <div class="icon">⚠️</div>
       <p><strong>Could not connect to the database.</strong></p>
-      <p style="font-size:0.8rem;margin-top:8px;color:#c0006f">${err.message}</p>
       <button class="btn btn-primary" style="margin-top:16px;max-width:160px" onclick="location.reload()">Retry</button>
     </div>`;
 });
+
+setInterval(fetchBooks, 30000);
 
 // ── Stats ─────────────────────────────────────────────────
 function updateStats() {
