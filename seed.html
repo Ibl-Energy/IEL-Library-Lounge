@@ -3,8 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>IEL Library — Seed Firestore</title>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
   body { font-family: sans-serif; max-width: 600px; margin: 60px auto; padding: 0 20px; background: #f0f4ff; }
   h1 { color: #002060; }
@@ -18,20 +16,14 @@
 </head>
 <body>
 <h1>📚 IEL Library — Firestore Seeder</h1>
-<p>Click the button below to populate your Firestore database with all 11 books. Only needs to be done once.</p>
+<p>Click the button below to populate your Firestore database with all 11 books.</p>
 <button id="btn" onclick="seed()">Seed Database</button>
 <div id="log">Ready. Press the button to start.</div>
 
 <script>
-firebase.initializeApp({
-  apiKey: "AIzaSyC4P8pH8S7XNsaIGZcv8Zx_lUbHAAis4uo",
-  authDomain: "iel-library-lounge.firebaseapp.com",
-  projectId: "iel-library-lounge",
-  storageBucket: "iel-library-lounge.firebasestorage.app",
-  messagingSenderId: "994424847957",
-  appId: "1:994424847957:web:9ab3548c2af9b089459edc"
-});
-const db = firebase.firestore();
+const PROJECT = "iel-library-lounge";
+const API_KEY = "AIzaSyC4P8pH8S7XNsaIGZcv8Zx_lUbHAAis4uo";
+const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
 
 const BOOKS = [
   {id:1,  title:"Start with Why",                          subtitle:"How Great Leaders Inspire Everyone to Take Action",   author:"Simon Sinek"},
@@ -50,43 +42,48 @@ const BOOKS = [
 const log = document.getElementById('log');
 function write(msg, cls='') { log.innerHTML += `<span class="${cls}">${msg}\n</span>`; }
 
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out after ${ms/1000}s — ${label}`)), ms))
-  ]);
+function toDoc(b) {
+  return {
+    fields: {
+      id:            { integerValue: b.id },
+      title:         { stringValue: b.title },
+      subtitle:      { stringValue: b.subtitle },
+      author:        { stringValue: b.author },
+      checkedOutBy:  { nullValue: null },
+      checkedOutDate:{ nullValue: null },
+      requests:      { arrayValue: { values: [] } }
+    }
+  };
 }
 
 async function seed() {
   document.getElementById('btn').disabled = true;
   log.textContent = '';
+  write('Connecting via REST API…');
 
-  write('Step 1: Connecting to Firebase…');
-  try {
-    await withTimeout(
-      db.collection('books').limit(1).get(),
-      8000, 'could not reach Firestore'
-    );
-    write('✓ Connected!', 'ok');
-  } catch(e) {
-    write(`✗ Connection failed: ${e.message}`, 'err');
-    write('\nPossible causes:\n• Firestore not enabled in Firebase Console\n• Browser is blocking the request\n• Rules issue');
-    document.getElementById('btn').disabled = false;
-    return;
+  let ok = 0;
+  for (const b of BOOKS) {
+    try {
+      const res = await fetch(`${BASE}/books/${b.id}?key=${API_KEY}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toDoc(b))
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error?.message || res.statusText);
+      }
+      ok++;
+      write(`  ✓ [${ok}/${BOOKS.length}] ${b.title}`, 'ok');
+    } catch(e) {
+      write(`  ✗ ${b.title}: ${e.message}`, 'err');
+    }
   }
 
-  write('Step 2: Writing books…');
-  try {
-    const batch = db.batch();
-    BOOKS.forEach(b => {
-      batch.set(db.collection('books').doc(String(b.id)),
-        { ...b, checkedOutBy: null, checkedOutDate: null, requests: [] });
-    });
-    await withTimeout(batch.commit(), 10000, 'write timed out');
-    write(`✓ All ${BOOKS.length} books written to Firestore!`, 'ok');
-    write('\nDone! Close this page and open index.html.', 'ok');
-  } catch(e) {
-    write(`✗ Write failed: ${e.message}`, 'err');
+  if (ok === BOOKS.length) {
+    write(`\n✓ All ${BOOKS.length} books written! Close this page and open index.html.`, 'ok');
+  } else {
+    write(`\n${ok}/${BOOKS.length} books written. Check errors above.`, 'err');
     document.getElementById('btn').disabled = false;
   }
 }
