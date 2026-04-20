@@ -496,11 +496,12 @@ async function fetchBooks() {
   render();
 }
 
-fetchBooks().catch(() => {
+fetchBooks().catch(e => {
   document.getElementById('bookGrid').innerHTML = `
     <div class="empty-state" style="grid-column:1/-1">
       <div class="icon">⚠️</div>
       <p><strong>Could not connect to the database.</strong></p>
+      <p style="font-size:0.78rem;color:#c0006f;margin-top:8px">${e.message}</p>
       <button class="btn btn-primary" style="margin-top:16px;max-width:160px" onclick="location.reload()">Retry</button>
     </div>`;
 });
