@@ -510,12 +510,25 @@ document.getElementById('bookGrid').innerHTML = '<div class="empty-state" style=
     db.collection('books').onSnapshot(snap => {
       state.books = snap.docs.map(d => d.data()).sort((a,b) => a.id - b.id);
       render();
+    }, err => {
+      console.error('Snapshot error:', err);
+      showError(err.message);
     });
   } catch(e) {
-    console.error(e);
-    document.getElementById('bookGrid').innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">⚠️</div><p>Could not connect to database. Please refresh.</p></div>';
+    console.error('Init error:', e);
+    showError(e.message);
   }
 })();
+
+function showError(msg) {
+  document.getElementById('bookGrid').innerHTML = `
+    <div class="empty-state" style="grid-column:1/-1">
+      <div class="icon">⚠️</div>
+      <p><strong>Could not connect to the database.</strong></p>
+      <p style="font-size:0.8rem;margin-top:8px;color:#c0006f">${msg}</p>
+      <button class="btn btn-primary" style="margin-top:16px;max-width:160px" onclick="location.reload()">Retry</button>
+    </div>`;
+}
 
 // ── Stats ─────────────────────────────────────────────────
 function updateStats() {
