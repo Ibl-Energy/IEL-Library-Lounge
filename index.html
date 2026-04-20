@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IEL Library Lounge</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
   :root {
     --navy:   #002060;
@@ -426,6 +428,22 @@
 <div id="toast"></div>
 
 <script>
+// ── Firebase ──────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyC4P8pH8S7XNsaIGZcv8Zx_lUbHAAis4uo",
+  authDomain: "iel-library-lounge.firebaseapp.com",
+  projectId: "iel-library-lounge",
+  storageBucket: "iel-library-lounge.firebasestorage.app",
+  messagingSenderId: "994424847957",
+  appId: "1:994424847957:web:9ab3548c2af9b089459edc"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ── Constants ─────────────────────────────────────────────
+const ADMIN_EMAIL = "delphine.laguette@ibl-energy.com";
+const ADMIN_PWD   = "REDACTED";
+
 const EMPLOYEES = ["Pierre","Aarti","Alvin","Rao","Joshua","Delphine","Edmund","Shaan","Kavinen","Daren","Arnaud","Shakeel","Azagen","Hansley","Aradhana","Agnes","Varun","Luqman","Kamlesh","Disha","Safya","Dishma","Alvaro","Arjun","Teven","Akshay","Poumalen","Dhivesh","David","Louise"];
 
 const BOOK_COVERS = {
@@ -443,47 +461,70 @@ const BOOK_COVERS = {
 };
 
 const BOOKS_RAW = [
-  {id:1,  title:"Start with Why",                           subtitle:"How Great Leaders Inspire Everyone to Take Action",   author:"Simon Sinek"},
-  {id:2,  title:"Good to Great",                            subtitle:"Why Some Companies Make the Leap...and Others Don't", author:"James C. Collins"},
-  {id:3,  title:"Built to Last",                            subtitle:"Successful Habits of Visionary Companies",            author:"James C. Collins & Jerry I. Porras"},
-  {id:4,  title:"Blue Ocean Strategy",                      subtitle:"",                                                    author:"Renée Mauborgne & W. Chan Kim"},
-  {id:5,  title:"Great by Choice",                          subtitle:"",                                                    author:"James C. Collins"},
-  {id:6,  title:"Hidden Potential",                         subtitle:"The Science of Achieving Greater Things",             author:"Adam Grant"},
-  {id:7,  title:"The 7 Habits of Highly Effective People",  subtitle:"",                                                    author:"Stephen Covey"},
-  {id:8,  title:"Atomic Habits",                            subtitle:"Build Good Habits & Break Bad Ones",                  author:"James Clear"},
-  {id:9,  title:"Ikigai",                                   subtitle:"The Japanese Secret to a Long and Happy Life",        author:"Francesc Miralles & Hector Garcia"},
-  {id:11, title:"High Performance Habits",                  subtitle:"How Extraordinary People Become That Way",            author:"Brendon Burchard"},
-  {id:12, title:"Turn the Ship Around!",                    subtitle:"A True Story of Turning Followers into Leaders",      author:"L. David Marquet"}
+  {id:1,  title:"Start with Why",                          subtitle:"How Great Leaders Inspire Everyone to Take Action",   author:"Simon Sinek"},
+  {id:2,  title:"Good to Great",                           subtitle:"Why Some Companies Make the Leap...and Others Don't", author:"James C. Collins"},
+  {id:3,  title:"Built to Last",                           subtitle:"Successful Habits of Visionary Companies",            author:"James C. Collins & Jerry I. Porras"},
+  {id:4,  title:"Blue Ocean Strategy",                     subtitle:"",                                                    author:"Renée Mauborgne & W. Chan Kim"},
+  {id:5,  title:"Great by Choice",                         subtitle:"",                                                    author:"James C. Collins"},
+  {id:6,  title:"Hidden Potential",                        subtitle:"The Science of Achieving Greater Things",             author:"Adam Grant"},
+  {id:7,  title:"The 7 Habits of Highly Effective People", subtitle:"",                                                    author:"Stephen Covey"},
+  {id:8,  title:"Atomic Habits",                           subtitle:"Build Good Habits & Break Bad Ones",                  author:"James Clear"},
+  {id:9,  title:"Ikigai",                                  subtitle:"The Japanese Secret to a Long and Happy Life",        author:"Francesc Miralles & Hector Garcia"},
+  {id:11, title:"High Performance Habits",                 subtitle:"How Extraordinary People Become That Way",            author:"Brendon Burchard"},
+  {id:12, title:"Turn the Ship Around!",                   subtitle:"A True Story of Turning Followers into Leaders",      author:"L. David Marquet"}
 ];
 
-const ADMIN_EMAIL = "delphine.laguette@ibl-energy.com";
-const ADMIN_PWD   = "REDACTED";
-let adminAuthenticated = false;
-
-const STORAGE_KEY = 'ibl_library_v5';
-function loadState() {
-  try { const r = localStorage.getItem(STORAGE_KEY); if (r) return JSON.parse(r); } catch(e){}
-  return { books: BOOKS_RAW.map(b => ({...b, checkedOutBy:null, checkedOutDate:null, requests:[]})), currentUser:'' };
-}
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-
-let state = loadState();
+// ── State ─────────────────────────────────────────────────
+let state = { books: [], currentUser: localStorage.getItem('iel_user') || '' };
 let currentTab = 'catalog';
 let pendingBookId = null;
+let adminAuthenticated = false;
 
+// ── User selector ─────────────────────────────────────────
 const userSel = document.getElementById('currentUser');
 EMPLOYEES.forEach(e => { const o = document.createElement('option'); o.value = e; o.textContent = e; userSel.appendChild(o); });
 if (state.currentUser) userSel.value = state.currentUser;
+function onUserChange() { state.currentUser = userSel.value; localStorage.setItem('iel_user', state.currentUser); render(); }
 
-function onUserChange() { state.currentUser = userSel.value; saveState(); render(); }
+// ── Helpers ───────────────────────────────────────────────
 function daysSince(d) { if (!d) return 0; return Math.floor((Date.now() - new Date(d).getTime()) / 86400000); }
 
+async function saveBook(book) {
+  await db.collection('books').doc(String(book.id)).set(book);
+}
+
+// ── Firebase init: seed if empty, then listen ─────────────
+document.getElementById('bookGrid').innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">⏳</div><p>Connecting to library…</p></div>';
+
+(async () => {
+  try {
+    const snap = await db.collection('books').get();
+    if (snap.empty) {
+      const batch = db.batch();
+      BOOKS_RAW.forEach(b => batch.set(
+        db.collection('books').doc(String(b.id)),
+        { ...b, checkedOutBy: null, checkedOutDate: null, requests: [] }
+      ));
+      await batch.commit();
+    }
+    db.collection('books').orderBy('id').onSnapshot(snap => {
+      state.books = snap.docs.map(d => d.data());
+      render();
+    });
+  } catch(e) {
+    console.error(e);
+    document.getElementById('bookGrid').innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">⚠️</div><p>Could not connect to database. Please refresh.</p></div>';
+  }
+})();
+
+// ── Stats ─────────────────────────────────────────────────
 function updateStats() {
   document.getElementById('statAvailable').textContent = state.books.filter(b => !b.checkedOutBy).length;
   document.getElementById('statCheckedOut').textContent = state.books.filter(b => b.checkedOutBy).length;
   document.getElementById('statRequests').textContent = state.books.reduce((s,b) => s + b.requests.length, 0);
 }
 
+// ── Tabs ──────────────────────────────────────────────────
 function switchTab(tab) {
   if (tab === 'admin' && !adminAuthenticated) { openAdminLogin(); return; }
   currentTab = tab;
@@ -493,6 +534,7 @@ function switchTab(tab) {
   render();
 }
 
+// ── Admin login ───────────────────────────────────────────
 function openAdminLogin() {
   document.getElementById('adminEmail').value = '';
   document.getElementById('adminPassword').value = '';
@@ -500,7 +542,6 @@ function openAdminLogin() {
   document.getElementById('adminLoginModal').classList.add('open');
   setTimeout(() => document.getElementById('adminEmail').focus(), 100);
 }
-
 function submitAdminLogin() {
   const email = document.getElementById('adminEmail').value.trim().toLowerCase();
   const pwd   = document.getElementById('adminPassword').value;
@@ -514,13 +555,9 @@ function submitAdminLogin() {
     document.getElementById('adminPassword').focus();
   }
 }
+function adminLogout() { adminAuthenticated = false; switchTab('catalog'); showToast('Logged out of Admin', 'cyan'); }
 
-function adminLogout() {
-  adminAuthenticated = false;
-  switchTab('catalog');
-  showToast('Logged out of Admin', 'cyan');
-}
-
+// ── Render ────────────────────────────────────────────────
 function render() { updateStats(); if (currentTab==='catalog') renderCatalog(); else if (currentTab==='mine') renderMine(); else if (currentTab==='tracker') renderTracker(); else renderAdmin(); }
 
 function renderCatalog() {
@@ -534,24 +571,20 @@ function renderCatalog() {
     return mq && mf;
   });
   if (!books.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="icon">📭</div><p>No books match your search.</p></div>`; return; }
-
   grid.innerHTML = books.map(b => {
     const isOut = !!b.checkedOutBy;
     const days = isOut ? daysSince(b.checkedOutDate) : 0;
     const isMyBook = b.checkedOutBy === user;
     const hasRequested = user && b.requests.includes(user);
     const cover = BOOK_COVERS[b.id];
-
     let footerBtns = '';
     if (!user) footerBtns = `<button class="btn btn-primary" disabled style="font-size:0.72rem">Select name first</button>`;
     else if (isMyBook) footerBtns = `<button class="btn btn-danger" onclick="openReturn(${b.id})">↩ Return</button>`;
     else if (!isOut) footerBtns = `<button class="btn btn-primary" onclick="openCheckout(${b.id})">Borrow</button>`;
     else if (hasRequested) footerBtns = `<button class="btn btn-outline" disabled>✓ On Waitlist</button>`;
     else footerBtns = `<button class="btn btn-cyan" onclick="openRequest(${b.id})" style="color:var(--navy-dark)">Request</button>`;
-
     const reqLine = b.requests.length ? `<div class="requests-list"><div class="requests-list-title">Waitlist (${b.requests.length}):</div>${b.requests.map(r=>`<span class="req-chip">${r}</span>`).join('')}</div>` : '';
     const whoRow = isOut ? `<div class="who-row">👤 <span class="who-name">${b.checkedOutBy}</span><span class="days-badge${days>14?' overdue':''}">${days===0?'Today':days+' day'+(days!==1?'s':'')}${days>14?' ⚠️':''}</span></div>` : '';
-
     return `<div class="book-card">
       <div class="book-cover-wrap">
         <img src="${cover}" alt="${b.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
@@ -578,20 +611,16 @@ function renderMine() {
   const myReqs  = state.books.filter(b => b.requests.includes(user));
   let html = `<div class="section-title">📚 Currently With Me (${myBooks.length})</div>`;
   if (!myBooks.length) html += `<div class="empty-state" style="padding:28px 0 40px"><div class="icon">📭</div><p>No books checked out.</p></div>`;
-  else html += `<table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Author</th><th>Days With You</th><th>Action</th></tr></thead><tbody>
-    ${myBooks.map(b => { const d=daysSince(b.checkedOutDate); return `<tr><td>${b.id}</td><td><strong>${b.title}</strong></td><td style="color:var(--text-muted)">${b.author}</td><td><span class="days-badge${d>14?' overdue':''}">${d===0?'Today':d+' day'+(d!==1?'s':'')}${d>14?' ⚠️':''}</span></td><td><button class="btn btn-danger btn-sm" onclick="openReturn(${b.id})">Return</button></td></tr>`; }).join('')}
-  </tbody></table>`;
+  else html += `<table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Author</th><th>Days With You</th><th>Action</th></tr></thead><tbody>${myBooks.map(b => { const d=daysSince(b.checkedOutDate); return `<tr><td>${b.id}</td><td><strong>${b.title}</strong></td><td style="color:var(--text-muted)">${b.author}</td><td><span class="days-badge${d>14?' overdue':''}">${d===0?'Today':d+' day'+(d!==1?'s':'')}${d>14?' ⚠️':''}</span></td><td><button class="btn btn-danger btn-sm" onclick="openReturn(${b.id})">Return</button></td></tr>`; }).join('')}</tbody></table>`;
   html += `<div class="section-title">🔖 My Waitlist Requests (${myReqs.length})</div>`;
   if (!myReqs.length) html += `<div class="empty-state" style="padding:20px 0"><div class="icon">📋</div><p>No pending requests.</p></div>`;
-  else html += `<table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Currently With</th><th>Queue</th><th>Action</th></tr></thead><tbody>
-    ${myReqs.map(b => { const pos=b.requests.indexOf(user)+1; return `<tr><td>${b.id}</td><td><strong>${b.title}</strong></td><td style="color:var(--text-muted)">${b.checkedOutBy||'—'}</td><td><span class="badge requested">#${pos} in queue</span></td><td><button class="btn btn-outline btn-sm" onclick="cancelRequest(${b.id})">Cancel</button></td></tr>`; }).join('')}
-  </tbody></table>`;
+  else html += `<table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Currently With</th><th>Queue</th><th>Action</th></tr></thead><tbody>${myReqs.map(b => { const pos=b.requests.indexOf(user)+1; return `<tr><td>${b.id}</td><td><strong>${b.title}</strong></td><td style="color:var(--text-muted)">${b.checkedOutBy||'—'}</td><td><span class="badge requested">#${pos} in queue</span></td><td><button class="btn btn-outline btn-sm" onclick="cancelRequest(${b.id})">Cancel</button></td></tr>`; }).join('')}</tbody></table>`;
   el.innerHTML = html;
 }
 
 function renderAdmin() {
   const el = document.getElementById('adminContent');
-  let html = `<div class="admin-logout-bar"><span class="admin-lock-badge">🔐 Logged in as Delphine</span> <button class="btn btn-outline btn-sm" style="margin-left:10px;flex:none" onclick="adminLogout()">Log out</button></div>
+  let html = `<div class="admin-logout-bar"><span class="admin-lock-badge">🔐 Logged in as Delphine</span><button class="btn btn-outline btn-sm" style="margin-left:10px;flex:none" onclick="adminLogout()">Log out</button></div>
   <div class="section-title">🗂 Full Library Status</div>
   <table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Author</th><th>Status</th><th>With</th><th>Days Out</th><th>Waitlist</th><th>Actions</th></tr></thead><tbody>`;
   state.books.forEach(b => {
@@ -609,10 +638,7 @@ function renderAdmin() {
     active.forEach(emp => {
       const holding = state.books.filter(b => b.checkedOutBy===emp);
       const waiting = state.books.filter(b => b.requests.includes(emp));
-      html += `<div class="admin-card"><h3>👤 ${emp}</h3>
-        ${holding.map(b=>`<div class="admin-row"><span>${b.title}</span><span class="days-badge">${daysSince(b.checkedOutDate)}d</span></div>`).join('')}
-        ${waiting.map(b=>`<div class="admin-row"><span style="color:var(--navy)">${b.title}</span><span class="req-chip">waiting</span></div>`).join('')}
-      </div>`;
+      html += `<div class="admin-card"><h3>👤 ${emp}</h3>${holding.map(b=>`<div class="admin-row"><span>${b.title}</span><span class="days-badge">${daysSince(b.checkedOutDate)}d</span></div>`).join('')}${waiting.map(b=>`<div class="admin-row"><span style="color:var(--navy)">${b.title}</span><span class="req-chip">waiting</span></div>`).join('')}</div>`;
     });
     html += `</div>`;
   }
@@ -623,84 +649,47 @@ function renderTracker() {
   const el = document.getElementById('trackerContent');
   const checkedOut = state.books.filter(b => b.checkedOutBy).sort((a,b) => new Date(a.checkedOutDate)-new Date(b.checkedOutDate));
   const available  = state.books.filter(b => !b.checkedOutBy);
-
   function coverImg(id) {
     const src = BOOK_COVERS[id];
-    return src
-      ? `<img src="${src}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`+`<div class="tracker-cover-ph" style="display:none">📖</div>`
-      : `<div class="tracker-cover-ph">📖</div>`;
+    return src ? `<img src="${src}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="tracker-cover-ph" style="display:none">📖</div>` : `<div class="tracker-cover-ph">📖</div>`;
   }
-
   function checkedOutRow(b) {
-    const days = daysSince(b.checkedOutDate);
-    const overdue = days > 14;
-    const initials = b.checkedOutBy.slice(0,2).toUpperCase();
+    const days = daysSince(b.checkedOutDate); const overdue = days > 14;
     const dateStr = new Date(b.checkedOutDate).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
     const wl = b.requests.length ? `<div class="tracker-waitlist">🔖 ${b.requests.length} on waitlist</div>` : '';
-    return `<div class="tracker-row">
-      <div class="tracker-cover">${coverImg(b.id)}</div>
-      <div class="tracker-info">
-        <div class="tracker-num">Book #${String(b.id).padStart(2,'0')}</div>
-        <div class="tracker-title">${b.title}</div>
-        <div class="tracker-author">${b.author}</div>
-      </div>
-      <div class="tracker-status">
-        <div class="tracker-person">
-          <div class="tracker-avatar">${initials}</div>
-          <span class="tracker-name">${b.checkedOutBy}</span>
-        </div>
-        <div class="tracker-since">Since ${dateStr}</div>
-        <div class="tracker-days${overdue?' overdue':''}">${days===0?'Today':days+' day'+(days!==1?'s':'')}${overdue?' ⚠️':''}</div>
-        ${wl}
-      </div>
-    </div>`;
+    return `<div class="tracker-row"><div class="tracker-cover">${coverImg(b.id)}</div><div class="tracker-info"><div class="tracker-num">Book #${String(b.id).padStart(2,'0')}</div><div class="tracker-title">${b.title}</div><div class="tracker-author">${b.author}</div></div><div class="tracker-status"><div class="tracker-person"><div class="tracker-avatar">${b.checkedOutBy.slice(0,2).toUpperCase()}</div><span class="tracker-name">${b.checkedOutBy}</span></div><div class="tracker-since">Since ${dateStr}</div><div class="tracker-days${overdue?' overdue':''}">${days===0?'Today':days+' day'+(days!==1?'s':'')}${overdue?' ⚠️':''}</div>${wl}</div></div>`;
   }
-
   function availableRow(b) {
     const wl = b.requests.length ? `<span class="req-chip">🔖 ${b.requests.length} waiting</span>` : `<span class="badge available">✅ Free</span>`;
-    return `<div class="tracker-row">
-      <div class="tracker-cover">${coverImg(b.id)}</div>
-      <div class="tracker-info">
-        <div class="tracker-num">Book #${String(b.id).padStart(2,'0')}</div>
-        <div class="tracker-title">${b.title}</div>
-        <div class="tracker-author">${b.author}</div>
-      </div>
-      <div class="tracker-avail">${wl}</div>
-    </div>`;
+    return `<div class="tracker-row"><div class="tracker-cover">${coverImg(b.id)}</div><div class="tracker-info"><div class="tracker-num">Book #${String(b.id).padStart(2,'0')}</div><div class="tracker-title">${b.title}</div><div class="tracker-author">${b.author}</div></div><div class="tracker-avail">${wl}</div></div>`;
   }
-
   const overdueCount = checkedOut.filter(b=>daysSince(b.checkedOutDate)>14).length;
   let html = '';
   if (checkedOut.length) {
-    html += `<div class="tracker-section-label">📤 Currently Checked Out <span class="tcount pink">${checkedOut.length}</span>${overdueCount?` <span class="tcount" style="background:#c0006f">⚠️ ${overdueCount} overdue</span>`:''}</div>`;
-    html += `<div class="tracker-list">${checkedOut.map(checkedOutRow).join('')}</div>`;
+    html += `<div class="tracker-section-label">📤 Currently Checked Out <span class="tcount pink">${checkedOut.length}</span>${overdueCount?` <span class="tcount" style="background:#c0006f">⚠️ ${overdueCount} overdue</span>`:''}</div><div class="tracker-list">${checkedOut.map(checkedOutRow).join('')}</div>`;
   }
   html += `<div class="tracker-section-label">✅ Available <span class="tcount cyan">${available.length}</span></div>`;
-  html += available.length
-    ? `<div class="tracker-list">${available.map(availableRow).join('')}</div>`
-    : `<div class="empty-state" style="padding:24px 0"><div class="icon">📭</div><p>All books are currently checked out.</p></div>`;
-
+  html += available.length ? `<div class="tracker-list">${available.map(availableRow).join('')}</div>` : `<div class="empty-state" style="padding:24px 0"><div class="icon">📭</div><p>All books are currently checked out.</p></div>`;
   el.innerHTML = html;
 }
 
+// ── Actions ───────────────────────────────────────────────
 function openCheckout(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('checkoutModalDesc').textContent=`Borrow "${b.title}" by ${b.author}. Recorded with today's date.`; document.getElementById('checkoutModal').classList.add('open'); }
-function confirmCheckout() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=state.currentUser; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==state.currentUser); saveState(); closeModal('checkoutModal'); showToast(`📗 "${b.title}" is now with you!`); render(); }
+async function confirmCheckout() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=state.currentUser; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==state.currentUser); closeModal('checkoutModal'); showToast(`📗 "${b.title}" is now with you!`); await saveBook(b); }
 function openReturn(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); const d=daysSince(b.checkedOutDate); document.getElementById('returnModalDesc').textContent=`Return "${b.title}"? You've had it for ${d===0?'less than a day':d+' day'+(d!==1?'s':'')}.`; document.getElementById('returnModal').classList.add('open'); }
-function confirmReturn() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=null; b.checkedOutDate=null; saveState(); closeModal('returnModal'); showToast(`↩️ "${b.title}" returned. Thank you!`,'cyan'); render(); }
+async function confirmReturn() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=null; b.checkedOutDate=null; closeModal('returnModal'); showToast(`↩️ "${b.title}" returned. Thank you!`,'cyan'); await saveBook(b); }
 function adminReturn(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('returnModalDesc').textContent=`Mark "${b.title}" as returned from ${b.checkedOutBy}?`; document.getElementById('returnModal').classList.add('open'); }
 function openRequest(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('requestModalDesc').textContent=`"${b.title}" is with ${b.checkedOutBy}. You'll be #${b.requests.length+1} on the waitlist.`; document.getElementById('requestModal').classList.add('open'); }
-function confirmRequest() { const b=state.books.find(x=>x.id===pendingBookId); if(!b.requests.includes(state.currentUser)) b.requests.push(state.currentUser); saveState(); closeModal('requestModal'); showToast(`🔖 Added to waitlist for "${b.title}"!`,'cyan'); render(); }
-function cancelRequest(id) { const b=state.books.find(x=>x.id===id); b.requests=b.requests.filter(r=>r!==state.currentUser); saveState(); showToast(`Removed from waitlist`); render(); }
+async function confirmRequest() { const b=state.books.find(x=>x.id===pendingBookId); if(!b.requests.includes(state.currentUser)) b.requests.push(state.currentUser); closeModal('requestModal'); showToast(`🔖 Added to waitlist for "${b.title}"!`,'cyan'); await saveBook(b); }
+async function cancelRequest(id) { const b=state.books.find(x=>x.id===id); b.requests=b.requests.filter(r=>r!==state.currentUser); showToast(`Removed from waitlist`); await saveBook(b); }
 function openAssign(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('assignModalDesc').textContent=`Assign "${b.title}" to:`; const sel=document.getElementById('assignSelect'); sel.innerHTML=EMPLOYEES.map(e=>`<option value="${e}">${e}</option>`).join(''); document.getElementById('assignModal').classList.add('open'); }
-function confirmAssign() { const emp=document.getElementById('assignSelect').value; const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=emp; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==emp); saveState(); closeModal('assignModal'); showToast(`📗 "${b.title}" assigned to ${emp}`); render(); }
+async function confirmAssign() { const emp=document.getElementById('assignSelect').value; const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=emp; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==emp); closeModal('assignModal'); showToast(`📗 "${b.title}" assigned to ${emp}`); await saveBook(b); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); pendingBookId=null; }
 
 document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); }));
 
 let toastTimer;
 function showToast(msg, type='') { const t=document.getElementById('toast'); t.textContent=msg; t.className='show '+type; clearTimeout(toastTimer); toastTimer=setTimeout(()=>{t.className='';},3200); }
-
-render();
 </script>
 </body>
 </html>
