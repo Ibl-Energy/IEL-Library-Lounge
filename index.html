@@ -490,10 +490,33 @@ async function saveBook(book) {
 document.getElementById('bookGrid').innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">⏳</div><p>Connecting to library…</p></div>';
 
 async function fetchBooks() {
-  const res = await fetch(`${DB_URL}/books.json`);
-  const data = await res.json();
-  state.books = data ? Object.values(data).filter(Boolean).map(b => ({...b, requests: b.requests || []})).sort((a,b) => a.id - b.id) : [];
+  try {
+    const res = await fetch(`${DB_URL}/books.json`);
+    const data = await res.json();
+    if (data && typeof data === 'object') {
+      state.books = Object.values(data).filter(Boolean).map(b => ({...b, requests: b.requests || []})).sort((a,b) => a.id - b.id);
+    } else {
+      // Database empty — seed it automatically
+      await seedDatabase();
+    }
+  } catch(e) {
+    console.warn('Firebase unavailable, using local data:', e.message);
+    if (!state.books.length) {
+      state.books = BOOKS_RAW.map(b => ({...b, checkedOutBy: null, checkedOutDate: null, requests: []}));
+    }
+  }
   render();
+}
+
+async function seedDatabase() {
+  const data = {};
+  BOOKS_RAW.forEach(b => { data[b.id] = {...b, checkedOutBy: null, checkedOutDate: null, requests: []}; });
+  await fetch(`${DB_URL}/books.json`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  state.books = Object.values(data).sort((a,b) => a.id - b.id);
 }
 
 fetchBooks().catch(e => {
