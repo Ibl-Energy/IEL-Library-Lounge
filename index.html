@@ -507,8 +507,8 @@ document.getElementById('bookGrid').innerHTML = '<div class="empty-state" style=
       ));
       await batch.commit();
     }
-    db.collection('books').orderBy('id').onSnapshot(snap => {
-      state.books = snap.docs.map(d => d.data());
+    db.collection('books').onSnapshot(snap => {
+      state.books = snap.docs.map(d => d.data()).sort((a,b) => a.id - b.id);
       render();
     });
   } catch(e) {
