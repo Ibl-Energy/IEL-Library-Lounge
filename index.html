@@ -520,6 +520,7 @@ async function fetchBooks() {
     const data = await res.json();
     if (data && typeof data === 'object') {
       state.books = Object.values(data).filter(Boolean).map(b => ({...b, requests: b.requests || []})).sort((a,b) => a.id - b.id);
+      state.books.forEach(b => { if (b.cover && !BOOK_COVERS[b.id]) BOOK_COVERS[b.id] = b.cover; });
     } else {
       // Database empty — seed it automatically
       await seedDatabase();
@@ -615,7 +616,7 @@ function renderCatalog() {
     const days = isOut ? daysSince(b.checkedOutDate) : 0;
     const isMyBook = b.checkedOutBy === user;
     const hasRequested = user && b.requests.includes(user);
-    const cover = BOOK_COVERS[b.id];
+    const cover = BOOK_COVERS[b.id] || b.cover || null;
     let footerBtns = '';
     if (!user) footerBtns = `<button class="btn btn-primary" disabled style="font-size:0.72rem">Select name first</button>`;
     else if (isMyBook) footerBtns = `<button class="btn btn-danger" onclick="openReturn(${b.id})">↩ Return</button>`;
@@ -666,7 +667,7 @@ function renderAdmin() {
     const d = b.checkedOutBy ? daysSince(b.checkedOutDate) : null;
     const dc = d!==null ? `<span class="days-badge${d>14?' overdue':''}">${d===0?'Today':d+' day'+(d!==1?'s':'')}${d>14?' ⚠️':''}</span>` : '—';
     const sb = b.checkedOutBy ? `<span class="badge checked-out">Checked Out</span>` : `<span class="badge available">Available</span>`;
-    const ab = b.checkedOutBy ? `<button class="btn btn-danger btn-sm" onclick="adminReturn(${b.id})">Return</button>` : `<button class="btn btn-primary btn-sm" onclick="openAssign(${b.id})">Assign</button>`;
+    const ab = (b.checkedOutBy ? `<button class="btn btn-danger btn-sm" onclick="adminReturn(${b.id})">Return</button>` : `<button class="btn btn-primary btn-sm" onclick="openAssign(${b.id})">Assign</button>`) + ` <button class="btn btn-outline btn-sm" onclick="editCover(${b.id})" title="Edit cover image">🖼</button>`;
     const wl = b.requests.length ? b.requests.map(r=>`<span class="req-chip">${r}</span>`).join('') : '<span style="color:var(--text-muted)">—</span>';
     html += `<tr><td>${b.id}</td><td><strong>${b.title}</strong></td><td style="color:var(--text-muted);font-size:0.78rem">${b.author}</td><td>${sb}</td><td>${b.checkedOutBy||'—'}</td><td>${dc}</td><td>${wl}</td><td>${ab}</td></tr>`;
   });
@@ -688,19 +689,19 @@ function renderTracker() {
   const el = document.getElementById('trackerContent');
   const checkedOut = state.books.filter(b => b.checkedOutBy).sort((a,b) => new Date(a.checkedOutDate)-new Date(b.checkedOutDate));
   const available  = state.books.filter(b => !b.checkedOutBy);
-  function coverImg(id) {
-    const src = BOOK_COVERS[id];
-    return src ? `<img src="${src}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="tracker-cover-ph" style="display:none">📖</div>` : `<div class="tracker-cover-ph">📖</div>`;
+  function coverImg(book) {
+    const resolvedSrc = BOOK_COVERS[book.id] || book.cover || null;
+    return resolvedSrc ? `<img src="${resolvedSrc}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="tracker-cover-ph" style="display:none">📖</div>` : `<div class="tracker-cover-ph">📖</div>`;
   }
   function checkedOutRow(b) {
     const days = daysSince(b.checkedOutDate); const overdue = days > 14;
     const dateStr = new Date(b.checkedOutDate).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
     const wl = b.requests.length ? `<div class="tracker-waitlist">🔖 ${b.requests.length} on waitlist</div>` : '';
-    return `<div class="tracker-row"><div class="tracker-cover">${coverImg(b.id)}</div><div class="tracker-info"><div class="tracker-num">Book #${String(b.id).padStart(2,'0')}</div><div class="tracker-title">${b.title}</div><div class="tracker-author">${b.author}</div></div><div class="tracker-status"><div class="tracker-person"><div class="tracker-avatar">${b.checkedOutBy.slice(0,2).toUpperCase()}</div><span class="tracker-name">${b.checkedOutBy}</span></div><div class="tracker-since">Since ${dateStr}</div><div class="tracker-days${overdue?' overdue':''}">${days===0?'Today':days+' day'+(days!==1?'s':'')}${overdue?' ⚠️':''}</div>${wl}</div></div>`;
+    return `<div class="tracker-row"><div class="tracker-cover">${coverImg(b)}</div><div class="tracker-info"><div class="tracker-num">Book #${String(b.id).padStart(2,'0')}</div><div class="tracker-title">${b.title}</div><div class="tracker-author">${b.author}</div></div><div class="tracker-status"><div class="tracker-person"><div class="tracker-avatar">${b.checkedOutBy.slice(0,2).toUpperCase()}</div><span class="tracker-name">${b.checkedOutBy}</span></div><div class="tracker-since">Since ${dateStr}</div><div class="tracker-days${overdue?' overdue':''}">${days===0?'Today':days+' day'+(days!==1?'s':'')}${overdue?' ⚠️':''}</div>${wl}</div></div>`;
   }
   function availableRow(b) {
     const wl = b.requests.length ? `<span class="req-chip">🔖 ${b.requests.length} waiting</span>` : `<span class="badge available">✅ Free</span>`;
-    return `<div class="tracker-row"><div class="tracker-cover">${coverImg(b.id)}</div><div class="tracker-info"><div class="tracker-num">Book #${String(b.id).padStart(2,'0')}</div><div class="tracker-title">${b.title}</div><div class="tracker-author">${b.author}</div></div><div class="tracker-avail">${wl}</div></div>`;
+    return `<div class="tracker-row"><div class="tracker-cover">${coverImg(b)}</div><div class="tracker-info"><div class="tracker-num">Book #${String(b.id).padStart(2,'0')}</div><div class="tracker-title">${b.title}</div><div class="tracker-author">${b.author}</div></div><div class="tracker-avail">${wl}</div></div>`;
   }
   const overdueCount = checkedOut.filter(b=>daysSince(b.checkedOutDate)>14).length;
   let html = '';
@@ -733,13 +734,28 @@ async function confirmAddBook() {
     return;
   }
   const newId = state.books.length ? Math.max(...state.books.map(b => b.id)) + 1 : 1;
-  const newBook = { id: newId, title, author, subtitle, checkedOutBy: null, checkedOutDate: null, requests: [] };
+  const newBook = { id: newId, title, author, subtitle, cover: cover || null, checkedOutBy: null, checkedOutDate: null, requests: [] };
   if (cover) BOOK_COVERS[newId] = cover;
   state.books.push(newBook);
   closeModal('addBookModal');
   showToast(`📗 "${title}" added to the library!`, 'cyan');
   render();
   await saveBook(newBook);
+}
+
+async function editCover(bookId) {
+  const book = state.books.find(b => b.id === bookId);
+  if (!book) return;
+  const current = BOOK_COVERS[bookId] || book.cover || '';
+  const url = prompt(`Enter cover image URL for "${book.title}":\n(Leave blank to remove cover)`, current);
+  if (url === null) return;
+  const trimmed = url.trim();
+  book.cover = trimmed || null;
+  if (trimmed) BOOK_COVERS[bookId] = trimmed;
+  else delete BOOK_COVERS[bookId];
+  render();
+  showToast('Cover updated!', 'cyan');
+  await saveBook(book);
 }
 
 function openCheckout(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('checkoutModalDesc').textContent=`Borrow "${b.title}" by ${b.author}. Recorded with today's date.`; document.getElementById('checkoutModal').classList.add('open'); }
