@@ -89,6 +89,19 @@
     background: var(--navy-dark);
     border-bottom: 2px solid rgba(255,255,255,0.06);
   }
+  .tab { position: relative; }
+  .notif-badge {
+    position: absolute; top: 6px; right: 4px;
+    background: #e8003d; color: white; font-size: 0.6rem; font-weight: 700;
+    border-radius: 99px; min-width: 16px; height: 16px;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0 4px;
+  }
+  .notif-row { display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
+  .notif-row:last-child { border-bottom: none; }
+  .notif-icon { font-size:1.3rem; flex-shrink:0; margin-top:2px; }
+  .notif-text { flex:1; }
+  .notif-meta { font-size:0.72rem; color:var(--text-muted); margin-top:2px; }
+  .notif-new { background: rgba(0,32,96,0.04); border-radius:8px; padding:4px 10px; }
   .tab {
     padding: 13px 24px; font-weight: 500; font-size: 0.86rem; cursor: pointer;
     color: rgba(255,255,255,0.5); border: none; background: none;
@@ -346,7 +359,7 @@
   <button class="tab active" onclick="switchTab('catalog')">📖 All Books</button>
   <button class="tab" onclick="switchTab('mine')">My Activity</button>
   <button class="tab" onclick="switchTab('tracker')">📊 Book Tracker</button>
-  <button class="tab" onclick="switchTab('admin')">Admin View</button>
+  <button class="tab" id="adminTab" onclick="switchTab('admin')">Admin View<span id="notifBadge" class="notif-badge" style="display:none"></span></button>
 </div>
 
 <main>
@@ -512,8 +525,43 @@ const BOOKS_RAW = [
   {id:12, title:"Turn the Ship Around!",                   subtitle:"A True Story of Turning Followers into Leaders",      author:"L. David Marquet"}
 ];
 
+// ── Notifications ─────────────────────────────────────────
+async function fetchNotifications() {
+  try {
+    const res = await fetch(`${DB_URL}/notifications.json`);
+    const data = await res.json();
+    state.notifications = data && typeof data === 'object'
+      ? Object.entries(data).filter(([,v])=>v).map(([id,v])=>({id,...v})).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp))
+      : [];
+  } catch(e) { state.notifications = []; }
+  updateNotifBadge();
+}
+
+async function saveNotification(type, book, user) {
+  const notif = { type, bookTitle: book.title, bookAuthor: book.author, userName: user, timestamp: new Date().toISOString(), seen: false };
+  const id = Date.now();
+  state.notifications.unshift({ id, ...notif });
+  updateNotifBadge();
+  try { await fetch(`${DB_URL}/notifications/${id}.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(notif) }); } catch(e) {}
+}
+
+async function markAllSeen() {
+  const unseen = state.notifications.filter(n => !n.seen);
+  unseen.forEach(n => n.seen = true);
+  updateNotifBadge();
+  for (const n of unseen) {
+    try { await fetch(`${DB_URL}/notifications/${n.id}/seen.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:'true' }); } catch(e) {}
+  }
+}
+
+function updateNotifBadge() {
+  const count = state.notifications.filter(n => !n.seen).length;
+  const badge = document.getElementById('notifBadge');
+  if (badge) { badge.textContent = count; badge.style.display = count > 0 ? 'inline-flex' : 'none'; }
+}
+
 // ── State ─────────────────────────────────────────────────
-let state = { books: [], currentUser: localStorage.getItem('iel_user') || '' };
+let state = { books: [], notifications: [], currentUser: localStorage.getItem('iel_user') || '' };
 let currentTab = 'catalog';
 let pendingBookId = null;
 let adminAuthenticated = false;
@@ -579,7 +627,8 @@ fetchBooks().catch(e => {
     </div>`;
 });
 
-setInterval(fetchBooks, 30000);
+fetchNotifications();
+setInterval(() => { fetchBooks(); fetchNotifications(); }, 30000);
 
 // ── Stats ─────────────────────────────────────────────────
 function updateStats() {
@@ -591,6 +640,7 @@ function updateStats() {
 // ── Tabs ──────────────────────────────────────────────────
 function switchTab(tab) {
   if (tab === 'admin' && !adminAuthenticated) { openAdminLogin(); return; }
+  if (tab === 'admin') markAllSeen();
   currentTab = tab;
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['catalog','mine','tracker','admin'][i] === tab));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -706,6 +756,20 @@ function renderAdmin() {
     });
     html += `</div>`;
   }
+  // Recent activity
+  html += `<div class="section-title">🔔 Recent Activity</div>`;
+  if (!state.notifications.length) {
+    html += `<div class="empty-state" style="padding:20px 0"><div class="icon">🔕</div><p>No activity yet.</p></div>`;
+  } else {
+    html += `<div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:8px 20px;margin-bottom:36px">`;
+    state.notifications.slice(0, 20).forEach(n => {
+      const icon = n.type === 'borrowed' ? '📗' : '🔖';
+      const action = n.type === 'borrowed' ? 'borrowed' : 'requested (waitlist)';
+      const when = new Date(n.timestamp).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) + ' ' + new Date(n.timestamp).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      html += `<div class="notif-row${n.seen?'':' notif-new'}"><div class="notif-icon">${icon}</div><div class="notif-text"><strong>${n.userName}</strong> ${action} <strong>${n.bookTitle}</strong><div class="notif-meta">by ${n.bookAuthor} &nbsp;·&nbsp; ${when}</div></div></div>`;
+    });
+    html += `</div>`;
+  }
   el.innerHTML = html;
 }
 
@@ -783,12 +847,12 @@ async function editCover(bookId) {
 }
 
 function openCheckout(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('checkoutModalDesc').textContent=`Borrow "${b.title}" by ${b.author}. Recorded with today's date.`; document.getElementById('checkoutModal').classList.add('open'); }
-async function confirmCheckout() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=state.currentUser; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==state.currentUser); closeModal('checkoutModal'); showToast(`📗 "${b.title}" is now with you!`); render(); await saveBook(b); sendNotification('borrowed', b, state.currentUser); }
+async function confirmCheckout() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=state.currentUser; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==state.currentUser); closeModal('checkoutModal'); showToast(`📗 "${b.title}" is now with you!`); render(); await saveBook(b); saveNotification('borrowed', b, state.currentUser); }
 function openReturn(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); const d=daysSince(b.checkedOutDate); document.getElementById('returnModalDesc').textContent=`Return "${b.title}"? You've had it for ${d===0?'less than a day':d+' day'+(d!==1?'s':'')}.`; document.getElementById('returnModal').classList.add('open'); }
 async function confirmReturn() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=null; b.checkedOutDate=null; closeModal('returnModal'); showToast(`↩️ "${b.title}" returned. Thank you!`,'cyan'); await saveBook(b); }
 function adminReturn(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('returnModalDesc').textContent=`Mark "${b.title}" as returned from ${b.checkedOutBy}?`; document.getElementById('returnModal').classList.add('open'); }
 function openRequest(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('requestModalDesc').textContent=`"${b.title}" is with ${b.checkedOutBy}. You'll be #${b.requests.length+1} on the waitlist.`; document.getElementById('requestModal').classList.add('open'); }
-async function confirmRequest() { const b=state.books.find(x=>x.id===pendingBookId); if(!b.requests.includes(state.currentUser)) b.requests.push(state.currentUser); closeModal('requestModal'); showToast(`🔖 Added to waitlist for "${b.title}"!`,'cyan'); render(); await saveBook(b); sendNotification('requested', b, state.currentUser); }
+async function confirmRequest() { const b=state.books.find(x=>x.id===pendingBookId); if(!b.requests.includes(state.currentUser)) b.requests.push(state.currentUser); closeModal('requestModal'); showToast(`🔖 Added to waitlist for "${b.title}"!`,'cyan'); render(); await saveBook(b); saveNotification('requested', b, state.currentUser); }
 async function cancelRequest(id) { const b=state.books.find(x=>x.id===id); b.requests=b.requests.filter(r=>r!==state.currentUser); showToast(`Removed from waitlist`); await saveBook(b); }
 function openAssign(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('assignModalDesc').textContent=`Assign "${b.title}" to:`; const sel=document.getElementById('assignSelect'); sel.innerHTML=EMPLOYEES.map(e=>`<option value="${e}">${e}</option>`).join(''); document.getElementById('assignModal').classList.add('open'); }
 async function confirmAssign() { const emp=document.getElementById('assignSelect').value; const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=emp; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==emp); closeModal('assignModal'); showToast(`📗 "${b.title}" assigned to ${emp}`); await saveBook(b); }
