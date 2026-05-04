@@ -472,16 +472,16 @@
 
 <script>
 // ── Email Notifications (FormSubmit) ──────────────────────
-async function sendNotification(action, book, user) {
-  const actionText = action === 'borrowed' ? 'borrowed' : 'requested (waitlist)';
+async function sendEmailNotification(type, book, user) {
+  const actionText = type === 'borrow' ? 'wants to borrow' : 'wants to join the waitlist for';
   const date = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
   try {
     await fetch('https://formsubmit.co/ajax/delphine.laguette@ibl-energy.com', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({
-        _subject: `📚 IEL Library: ${user} has ${actionText} "${book.title}"`,
-        Borrower: user,
+        _subject: `📚 IEL Library: ${user} ${actionText} "${book.title}" — approval needed`,
+        Person: user,
         Action:   actionText,
         Book:     book.title,
         Author:   book.author,
@@ -549,6 +549,7 @@ async function createPendingRequest(type, book, user) {
   state.pendingRequests.push({ id, ...req });
   updateNotifBadge();
   try { await fetch(`${DB_URL}/pendingRequests/${id}.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req) }); } catch(e) {}
+  sendEmailNotification(type, book, user);
 }
 
 async function acceptRequest(reqId) {
