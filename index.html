@@ -451,30 +451,25 @@
 
 <div id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
-// ── EmailJS ───────────────────────────────────────────────
-const EMAILJS_PUBLIC_KEY  = "YOUR_PUBLIC_KEY";
-const EMAILJS_SERVICE_ID  = "YOUR_SERVICE_ID";
-const EMAILJS_TEMPLATE_ID = "YOUR_TEMPLATE_ID";
-const NOTIFY_EMAIL        = "delphine.laguette@ibl-energy.com";
-
-(function() {
-  if (EMAILJS_PUBLIC_KEY !== "YOUR_PUBLIC_KEY") emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
-})();
-
+// ── Email Notifications (FormSubmit) ──────────────────────
 async function sendNotification(action, book, user) {
-  if (EMAILJS_PUBLIC_KEY === "YOUR_PUBLIC_KEY") return;
-  const params = {
-    to_email:   NOTIFY_EMAIL,
-    action:     action,
-    book_title: book.title,
-    book_author: book.author,
-    user_name:  user,
-    date:       new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }),
-  };
+  const actionText = action === 'borrowed' ? 'borrowed' : 'requested (waitlist)';
+  const date = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
   try {
-    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
+    await fetch('https://formsubmit.co/ajax/delphine.laguette@ibl-energy.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: `📚 IEL Library: ${user} has ${actionText} "${book.title}"`,
+        Borrower: user,
+        Action:   actionText,
+        Book:     book.title,
+        Author:   book.author,
+        Date:     date,
+        _template: 'table',
+      })
+    });
   } catch(e) {
     console.warn('Email notification failed:', e);
   }
