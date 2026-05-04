@@ -298,7 +298,9 @@
   }
   .modal-input:focus { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(0,32,96,0.08); }
   .login-error { color: #c0006f; font-size: 0.8rem; min-height: 20px; margin-bottom: 10px; }
-  .admin-logout-bar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
+  .admin-logout-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+  .modal-input-group { margin-bottom: 12px; }
+  .modal-input-group label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--navy); margin-bottom: 4px; }
   .admin-lock-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(255,81,161,0.08); border:1px solid rgba(255,81,161,0.25); color:#c0006f; font-size:0.78rem; font-weight:600; padding:5px 14px; border-radius:99px; }
 
   @media (max-width: 700px) {
@@ -401,6 +403,33 @@
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('assignModal')">Cancel</button>
       <button class="btn btn-primary" onclick="confirmAssign()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="addBookModal">
+  <div class="modal" style="max-width:520px">
+    <h2>➕ Add a New Book</h2>
+    <div class="modal-input-group">
+      <label>Title *</label>
+      <input type="text" id="newBookTitle" class="modal-input" placeholder="e.g. The Lean Startup">
+    </div>
+    <div class="modal-input-group">
+      <label>Author *</label>
+      <input type="text" id="newBookAuthor" class="modal-input" placeholder="e.g. Eric Ries">
+    </div>
+    <div class="modal-input-group">
+      <label>Subtitle</label>
+      <input type="text" id="newBookSubtitle" class="modal-input" placeholder="Optional">
+    </div>
+    <div class="modal-input-group">
+      <label>Cover Image URL</label>
+      <input type="url" id="newBookCover" class="modal-input" placeholder="https://… (optional)">
+    </div>
+    <div id="addBookError" class="login-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('addBookModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAddBook()">Add Book</button>
     </div>
   </div>
 </div>
@@ -630,7 +659,7 @@ function renderMine() {
 
 function renderAdmin() {
   const el = document.getElementById('adminContent');
-  let html = `<div class="admin-logout-bar"><span class="admin-lock-badge">🔐 Logged in as Delphine</span><button class="btn btn-outline btn-sm" style="margin-left:10px;flex:none" onclick="adminLogout()">Log out</button></div>
+  let html = `<div class="admin-logout-bar"><span class="admin-lock-badge">🔐 Logged in as Delphine</span><div style="display:flex;gap:8px"><button class="btn btn-cyan btn-sm" style="flex:none;color:var(--navy-dark)" onclick="openAddBook()">➕ Add Book</button><button class="btn btn-outline btn-sm" style="flex:none" onclick="adminLogout()">Log out</button></div></div>
   <div class="section-title">🗂 Full Library Status</div>
   <table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Author</th><th>Status</th><th>With</th><th>Days Out</th><th>Waitlist</th><th>Actions</th></tr></thead><tbody>`;
   state.books.forEach(b => {
@@ -684,6 +713,35 @@ function renderTracker() {
 }
 
 // ── Actions ───────────────────────────────────────────────
+function openAddBook() {
+  document.getElementById('newBookTitle').value = '';
+  document.getElementById('newBookAuthor').value = '';
+  document.getElementById('newBookSubtitle').value = '';
+  document.getElementById('newBookCover').value = '';
+  document.getElementById('addBookError').textContent = '';
+  document.getElementById('addBookModal').classList.add('open');
+  setTimeout(() => document.getElementById('newBookTitle').focus(), 100);
+}
+
+async function confirmAddBook() {
+  const title    = document.getElementById('newBookTitle').value.trim();
+  const author   = document.getElementById('newBookAuthor').value.trim();
+  const subtitle = document.getElementById('newBookSubtitle').value.trim();
+  const cover    = document.getElementById('newBookCover').value.trim();
+  if (!title || !author) {
+    document.getElementById('addBookError').textContent = 'Title and Author are required.';
+    return;
+  }
+  const newId = state.books.length ? Math.max(...state.books.map(b => b.id)) + 1 : 1;
+  const newBook = { id: newId, title, author, subtitle, checkedOutBy: null, checkedOutDate: null, requests: [] };
+  if (cover) BOOK_COVERS[newId] = cover;
+  state.books.push(newBook);
+  closeModal('addBookModal');
+  showToast(`📗 "${title}" added to the library!`, 'cyan');
+  render();
+  await saveBook(newBook);
+}
+
 function openCheckout(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('checkoutModalDesc').textContent=`Borrow "${b.title}" by ${b.author}. Recorded with today's date.`; document.getElementById('checkoutModal').classList.add('open'); }
 async function confirmCheckout() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=state.currentUser; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==state.currentUser); closeModal('checkoutModal'); showToast(`📗 "${b.title}" is now with you!`); await saveBook(b); }
 function openReturn(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); const d=daysSince(b.checkedOutDate); document.getElementById('returnModalDesc').textContent=`Return "${b.title}"? You've had it for ${d===0?'less than a day':d+' day'+(d!==1?'s':'')}.`; document.getElementById('returnModal').classList.add('open'); }
