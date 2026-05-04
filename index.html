@@ -96,6 +96,12 @@
     border-radius: 99px; min-width: 16px; height: 16px;
     display: inline-flex; align-items: center; justify-content: center; padding: 0 4px;
   }
+  .btn-pending { background:#f5a623; color:white; cursor:default; }
+  .pending-card { background:white; border-radius:var(--radius); box-shadow:var(--shadow); padding:16px 20px; margin-bottom:12px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .pending-info { flex:1; min-width:200px; }
+  .pending-info strong { font-size:0.95rem; color:var(--navy); }
+  .pending-info .pending-meta { font-size:0.78rem; color:var(--text-muted); margin-top:3px; }
+  .pending-actions { display:flex; gap:8px; flex-shrink:0; }
   .notif-row { display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
   .notif-row:last-child { border-bottom: none; }
   .notif-icon { font-size:1.3rem; flex-shrink:0; margin-top:2px; }
@@ -385,7 +391,7 @@
     <p id="checkoutModalDesc"></p>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('checkoutModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmCheckout()">Confirm Borrow</button>
+      <button class="btn btn-primary" onclick="confirmCheckout()">Send Request</button>
     </div>
   </div>
 </div>
@@ -405,7 +411,7 @@
     <p id="requestModalDesc"></p>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('requestModal')">Cancel</button>
-      <button class="btn btn-cyan" onclick="confirmRequest()">Add to Waitlist</button>
+      <button class="btn btn-cyan" onclick="confirmRequest()">Send Request</button>
     </div>
   </div>
 </div>
@@ -525,6 +531,57 @@ const BOOKS_RAW = [
   {id:12, title:"Turn the Ship Around!",                   subtitle:"A True Story of Turning Followers into Leaders",      author:"L. David Marquet"}
 ];
 
+// ── Pending Requests ──────────────────────────────────────
+async function fetchPendingRequests() {
+  try {
+    const res = await fetch(`${DB_URL}/pendingRequests.json`);
+    const data = await res.json();
+    state.pendingRequests = data && typeof data === 'object'
+      ? Object.entries(data).filter(([,v])=>v && v.status==='pending').map(([id,v])=>({id,...v})).sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp))
+      : [];
+  } catch(e) { state.pendingRequests = []; }
+  updateNotifBadge();
+}
+
+async function createPendingRequest(type, book, user) {
+  const req = { type, bookId: book.id, bookTitle: book.title, bookAuthor: book.author, userName: user, timestamp: new Date().toISOString(), status: 'pending' };
+  const id = 'pr_' + Date.now();
+  state.pendingRequests.push({ id, ...req });
+  updateNotifBadge();
+  try { await fetch(`${DB_URL}/pendingRequests/${id}.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req) }); } catch(e) {}
+}
+
+async function acceptRequest(reqId) {
+  const req = state.pendingRequests.find(r => r.id === reqId);
+  if (!req) return;
+  const book = state.books.find(b => b.id === req.bookId);
+  if (!book) return;
+  if (req.type === 'borrow') {
+    book.checkedOutBy = req.userName;
+    book.checkedOutDate = new Date().toISOString();
+    book.requests = (book.requests || []).filter(r => r !== req.userName);
+    await saveBook(book);
+    saveNotification('borrowed', book, req.userName);
+  } else {
+    if (!(book.requests || []).includes(req.userName)) { book.requests = [...(book.requests||[]), req.userName]; }
+    await saveBook(book);
+    saveNotification('requested', book, req.userName);
+  }
+  state.pendingRequests = state.pendingRequests.filter(r => r.id !== reqId);
+  try { await fetch(`${DB_URL}/pendingRequests/${reqId}/status.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:'"accepted"' }); } catch(e) {}
+  showToast(`✅ Request accepted for ${req.userName}`, 'cyan');
+  render();
+}
+
+async function declineRequest(reqId) {
+  const req = state.pendingRequests.find(r => r.id === reqId);
+  if (!req) return;
+  state.pendingRequests = state.pendingRequests.filter(r => r.id !== reqId);
+  try { await fetch(`${DB_URL}/pendingRequests/${reqId}/status.json`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:'"declined"' }); } catch(e) {}
+  showToast(`❌ Request declined for ${req.userName}`, 'pink');
+  render();
+}
+
 // ── Notifications ─────────────────────────────────────────
 async function fetchNotifications() {
   try {
@@ -555,13 +612,13 @@ async function markAllSeen() {
 }
 
 function updateNotifBadge() {
-  const count = state.notifications.filter(n => !n.seen).length;
+  const count = state.pendingRequests.filter(r => r.status === 'pending').length + state.notifications.filter(n => !n.seen).length;
   const badge = document.getElementById('notifBadge');
   if (badge) { badge.textContent = count; badge.style.display = count > 0 ? 'inline-flex' : 'none'; }
 }
 
 // ── State ─────────────────────────────────────────────────
-let state = { books: [], notifications: [], currentUser: localStorage.getItem('iel_user') || '' };
+let state = { books: [], notifications: [], pendingRequests: [], currentUser: localStorage.getItem('iel_user') || '' };
 let currentTab = 'catalog';
 let pendingBookId = null;
 let adminAuthenticated = false;
@@ -628,7 +685,8 @@ fetchBooks().catch(e => {
 });
 
 fetchNotifications();
-setInterval(() => { fetchBooks(); fetchNotifications(); }, 30000);
+fetchPendingRequests();
+setInterval(() => { fetchBooks(); fetchNotifications(); fetchPendingRequests(); }, 30000);
 
 // ── Stats ─────────────────────────────────────────────────
 function updateStats() {
@@ -640,7 +698,7 @@ function updateStats() {
 // ── Tabs ──────────────────────────────────────────────────
 function switchTab(tab) {
   if (tab === 'admin' && !adminAuthenticated) { openAdminLogin(); return; }
-  if (tab === 'admin') markAllSeen();
+  if (tab === 'admin') { markAllSeen(); updateNotifBadge(); }
   currentTab = tab;
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['catalog','mine','tracker','admin'][i] === tab));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -690,10 +748,13 @@ function renderCatalog() {
     const days = isOut ? daysSince(b.checkedOutDate) : 0;
     const isMyBook = b.checkedOutBy === user;
     const hasRequested = user && b.requests.includes(user);
+    const hasPendingBorrow = user && state.pendingRequests.some(r => r.bookId === b.id && r.userName === user && r.type === 'borrow' && r.status === 'pending');
+    const hasPendingRequest = user && state.pendingRequests.some(r => r.bookId === b.id && r.userName === user && r.type === 'request' && r.status === 'pending');
     const cover = BOOK_COVERS[b.id] || b.cover || null;
     let footerBtns = '';
     if (!user) footerBtns = `<button class="btn btn-primary" disabled style="font-size:0.72rem">Select name first</button>`;
     else if (isMyBook) footerBtns = `<button class="btn btn-danger" onclick="openReturn(${b.id})">↩ Return</button>`;
+    else if (hasPendingBorrow || hasPendingRequest) footerBtns = `<button class="btn btn-pending" disabled>⏳ Awaiting approval</button>`;
     else if (!isOut) footerBtns = `<button class="btn btn-primary" onclick="openCheckout(${b.id})">Borrow</button>`;
     else if (hasRequested) footerBtns = `<button class="btn btn-outline" disabled>✓ On Waitlist</button>`;
     else footerBtns = `<button class="btn btn-cyan" onclick="openRequest(${b.id})" style="color:var(--navy-dark)">Request</button>`;
@@ -734,8 +795,22 @@ function renderMine() {
 
 function renderAdmin() {
   const el = document.getElementById('adminContent');
-  let html = `<div class="admin-logout-bar"><span class="admin-lock-badge">🔐 Logged in as Delphine</span><div style="display:flex;gap:8px"><button class="btn btn-cyan btn-sm" style="flex:none;color:var(--navy-dark)" onclick="openAddBook()">➕ Add Book</button><button class="btn btn-outline btn-sm" style="flex:none" onclick="adminLogout()">Log out</button></div></div>
-  <div class="section-title">🗂 Full Library Status</div>
+  let html = `<div class="admin-logout-bar"><span class="admin-lock-badge">🔐 Logged in as Delphine</span><div style="display:flex;gap:8px"><button class="btn btn-cyan btn-sm" style="flex:none;color:var(--navy-dark)" onclick="openAddBook()">➕ Add Book</button><button class="btn btn-outline btn-sm" style="flex:none" onclick="adminLogout()">Log out</button></div></div>`;
+
+  // Pending approvals
+  const pending = state.pendingRequests.filter(r => r.status === 'pending');
+  html += `<div class="section-title">⏳ Pending Approvals <span class="tcount pink">${pending.length}</span></div>`;
+  if (!pending.length) {
+    html += `<div class="empty-state" style="padding:16px 0 28px"><div class="icon">✅</div><p>No pending requests.</p></div>`;
+  } else {
+    pending.forEach(r => {
+      const typeLabel = r.type === 'borrow' ? '📗 Wants to <strong>borrow</strong>' : '🔖 Wants to join <strong>waitlist</strong> for';
+      const when = new Date(r.timestamp).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) + ' ' + new Date(r.timestamp).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      html += `<div class="pending-card"><div class="pending-info"><strong>${r.userName}</strong> ${typeLabel} <strong>"${r.bookTitle}"</strong><div class="pending-meta">by ${r.bookAuthor} &nbsp;·&nbsp; Requested ${when}</div></div><div class="pending-actions"><button class="btn btn-primary btn-sm" onclick="acceptRequest('${r.id}')">✓ Accept</button><button class="btn btn-danger btn-sm" onclick="declineRequest('${r.id}')">✗ Decline</button></div></div>`;
+    });
+  }
+
+  html += `<div class="section-title">🗂 Full Library Status</div>
   <table class="activity-table"><thead><tr><th>#</th><th>Book</th><th>Author</th><th>Status</th><th>With</th><th>Days Out</th><th>Waitlist</th><th>Actions</th></tr></thead><tbody>`;
   state.books.forEach(b => {
     const d = b.checkedOutBy ? daysSince(b.checkedOutDate) : null;
@@ -847,12 +922,12 @@ async function editCover(bookId) {
 }
 
 function openCheckout(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('checkoutModalDesc').textContent=`Borrow "${b.title}" by ${b.author}. Recorded with today's date.`; document.getElementById('checkoutModal').classList.add('open'); }
-async function confirmCheckout() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=state.currentUser; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==state.currentUser); closeModal('checkoutModal'); showToast(`📗 "${b.title}" is now with you!`); render(); await saveBook(b); saveNotification('borrowed', b, state.currentUser); }
+async function confirmCheckout() { const b=state.books.find(x=>x.id===pendingBookId); closeModal('checkoutModal'); showToast(`📬 Your borrow request has been sent to Delphine for approval!`,'cyan'); await createPendingRequest('borrow', b, state.currentUser); render(); }
 function openReturn(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); const d=daysSince(b.checkedOutDate); document.getElementById('returnModalDesc').textContent=`Return "${b.title}"? You've had it for ${d===0?'less than a day':d+' day'+(d!==1?'s':'')}.`; document.getElementById('returnModal').classList.add('open'); }
 async function confirmReturn() { const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=null; b.checkedOutDate=null; closeModal('returnModal'); showToast(`↩️ "${b.title}" returned. Thank you!`,'cyan'); await saveBook(b); }
 function adminReturn(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('returnModalDesc').textContent=`Mark "${b.title}" as returned from ${b.checkedOutBy}?`; document.getElementById('returnModal').classList.add('open'); }
 function openRequest(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('requestModalDesc').textContent=`"${b.title}" is with ${b.checkedOutBy}. You'll be #${b.requests.length+1} on the waitlist.`; document.getElementById('requestModal').classList.add('open'); }
-async function confirmRequest() { const b=state.books.find(x=>x.id===pendingBookId); if(!b.requests.includes(state.currentUser)) b.requests.push(state.currentUser); closeModal('requestModal'); showToast(`🔖 Added to waitlist for "${b.title}"!`,'cyan'); render(); await saveBook(b); saveNotification('requested', b, state.currentUser); }
+async function confirmRequest() { const b=state.books.find(x=>x.id===pendingBookId); closeModal('requestModal'); showToast(`📬 Your waitlist request has been sent to Delphine for approval!`,'cyan'); await createPendingRequest('request', b, state.currentUser); render(); }
 async function cancelRequest(id) { const b=state.books.find(x=>x.id===id); b.requests=b.requests.filter(r=>r!==state.currentUser); showToast(`Removed from waitlist`); await saveBook(b); }
 function openAssign(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('assignModalDesc').textContent=`Assign "${b.title}" to:`; const sel=document.getElementById('assignSelect'); sel.innerHTML=EMPLOYEES.map(e=>`<option value="${e}">${e}</option>`).join(''); document.getElementById('assignModal').classList.add('open'); }
 async function confirmAssign() { const emp=document.getElementById('assignSelect').value; const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=emp; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==emp); closeModal('assignModal'); showToast(`📗 "${b.title}" assigned to ${emp}`); await saveBook(b); }
