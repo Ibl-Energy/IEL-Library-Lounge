@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Upload Logo to imgbb</title>
+<style>
+  body { font-family: sans-serif; max-width: 500px; margin: 80px auto; padding: 0 20px; background: #f0f4ff; }
+  h1 { color: #002060; }
+  button { background: #002060; color: white; border: none; padding: 14px 32px; font-size: 1rem; border-radius: 8px; cursor: pointer; margin-top: 16px; }
+  button:disabled { background: #aaa; cursor: not-allowed; }
+  #log { background: white; border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-top: 20px; font-family: monospace; font-size: 0.9rem; white-space: pre-wrap; min-height: 80px; }
+  #result { background: #002060; color: #00D0DA; border-radius: 8px; padding: 16px; margin-top: 16px; font-family: monospace; font-size: 0.9rem; display: none; word-break: break-all; }
+  .ok { color: #00a060; } .err { color: #c0006f; }
+</style>
+</head>
+<body>
+<h1>📸 Logo Uploader</h1>
+<p>Click the button to upload the IBL Energy logo from imgur to imgbb.</p>
+<button id="btn" onclick="upload()">Upload Logo</button>
+<div id="log">Ready.</div>
+<div id="result"></div>
+
+<script>
+const IMGBB_KEY = "89da7fcc2aaa8eb72b49d1f09e0167d7";
+const IMGUR_URL = "https://i.imgur.com/K1cUuu0.png";
+
+const log = document.getElementById('log');
+const result = document.getElementById('result');
+
+function write(msg, cls='') { log.innerHTML += `<span class="${cls}">${msg}\n</span>`; }
+
+async function upload() {
+  document.getElementById('btn').disabled = true;
+  log.textContent = '';
+  result.style.display = 'none';
+
+  write('Fetching logo from imgur…');
+  let blob;
+  try {
+    const res = await fetch(IMGUR_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    blob = await res.blob();
+    write(`✓ Fetched (${(blob.size/1024).toFixed(1)} KB)`, 'ok');
+  } catch(e) {
+    write(`✗ Could not fetch from imgur: ${e.message}`, 'err');
+    write('\nTry uploading manually at imgbb.com instead.');
+    document.getElementById('btn').disabled = false;
+    return;
+  }
+
+  write('Uploading to imgbb…');
+  try {
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(blob);
+    });
+
+    const form = new FormData();
+    form.append('key', IMGBB_KEY);
+    form.append('image', base64);
+    form.append('name', 'IBL_Energy_Logo');
+
+    const r = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form });
+    const data = await r.json();
+    if (!data.success) throw new Error(JSON.stringify(data));
+
+    const url = data.data.url;
+    write('✓ Uploaded successfully!', 'ok');
+    result.style.display = 'block';
+    result.innerHTML = `✅ Copy this URL and paste it in the chat:\n\n${url}`;
+  } catch(e) {
+    write(`✗ Upload failed: ${e.message}`, 'err');
+    document.getElementById('btn').disabled = false;
+  }
+}
+</script>
+</body>
+</html>
