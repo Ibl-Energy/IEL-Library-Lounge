@@ -734,6 +734,41 @@ function submitAdminLogin() {
 }
 function adminLogout() { adminAuthenticated = false; switchTab('catalog'); showToast('Logged out of Admin', 'cyan'); }
 
+function exportData() {
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    books: state.books
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `IEL-Library-Backup-${new Date().toLocaleDateString('en-GB').replace(/\//g,'-')}.json`;
+  a.click();
+  showToast('✅ Backup downloaded!', 'cyan');
+}
+
+async function importData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    const books = backup.books || backup;
+    if (!Array.isArray(books) || !books.length || !books[0].id) { showToast('❌ Invalid backup file', 'pink'); return; }
+    if (!confirm(`Restore ${books.length} books from backup dated ${backup.exportedAt ? new Date(backup.exportedAt).toLocaleDateString('en-GB') : 'unknown'}?\n\nThis will overwrite current data.`)) return;
+    showToast('Restoring…', 'cyan');
+    const data = {};
+    books.forEach(b => { data[b.id] = b; if (b.cover) BOOK_COVERS[b.id] = b.cover; });
+    await fetch(`${DB_URL}/books.json`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    state.books = books.sort((a,b) => a.id - b.id);
+    render();
+    showToast(`✅ ${books.length} books restored successfully!`, 'cyan');
+  } catch(e) {
+    showToast('❌ Restore failed: ' + e.message, 'pink');
+  }
+  input.value = '';
+}
+
 // ── Render ────────────────────────────────────────────────
 function render() { updateStats(); if (currentTab==='catalog') renderCatalog(); else if (currentTab==='mine') renderMine(); else if (currentTab==='tracker') renderTracker(); else renderAdmin(); }
 
@@ -800,7 +835,7 @@ function renderMine() {
 
 function renderAdmin() {
   const el = document.getElementById('adminContent');
-  let html = `<div class="admin-logout-bar"><span class="admin-lock-badge">🔐 Logged in as Delphine</span><div style="display:flex;gap:8px"><button class="btn btn-cyan btn-sm" style="flex:none;color:var(--navy-dark)" onclick="openAddBook()">➕ Add Book</button><button class="btn btn-outline btn-sm" style="flex:none" onclick="adminLogout()">Log out</button></div></div>`;
+  let html = `<div class="admin-logout-bar"><span class="admin-lock-badge">🔐 Logged in as Delphine</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-cyan btn-sm" style="flex:none;color:var(--navy-dark)" onclick="openAddBook()">➕ Add Book</button><button class="btn btn-outline btn-sm" style="flex:none" onclick="exportData()">⬇️ Export Backup</button><label class="btn btn-outline btn-sm" style="flex:none;cursor:pointer">⬆️ Import Backup<input type="file" accept=".json" style="display:none" onchange="importData(this)"></label><button class="btn btn-outline btn-sm" style="flex:none" onclick="adminLogout()">Log out</button></div></div>`;
 
   // Pending approvals
   const pending = state.pendingRequests.filter(r => r.status === 'pending');
