@@ -420,6 +420,10 @@
     <h2>📋 Assign Book</h2>
     <p id="assignModalDesc"></p>
     <select class="modal-select" id="assignSelect"></select>
+    <div class="modal-input-group" style="margin-top:14px">
+      <label>Checkout Date</label>
+      <input type="date" id="assignDate" class="modal-input">
+    </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('assignModal')">Cancel</button>
       <button class="btn btn-primary" onclick="confirmAssign()">Assign</button>
@@ -930,8 +934,27 @@ function adminReturn(id) { pendingBookId=id; const b=state.books.find(x=>x.id===
 function openRequest(id) { if(!state.currentUser){showToast('Please select your name first!','pink');return;} pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('requestModalDesc').textContent=`"${b.title}" is with ${b.checkedOutBy}. You'll be #${b.requests.length+1} on the waitlist.`; document.getElementById('requestModal').classList.add('open'); }
 async function confirmRequest() { const b=state.books.find(x=>x.id===pendingBookId); closeModal('requestModal'); showToast(`📬 Your waitlist request has been sent to Delphine for approval!`,'cyan'); await createPendingRequest('request', b, state.currentUser); render(); }
 async function cancelRequest(id) { const b=state.books.find(x=>x.id===id); b.requests=b.requests.filter(r=>r!==state.currentUser); showToast(`Removed from waitlist`); await saveBook(b); }
-function openAssign(id) { pendingBookId=id; const b=state.books.find(x=>x.id===id); document.getElementById('assignModalDesc').textContent=`Assign "${b.title}" to:`; const sel=document.getElementById('assignSelect'); sel.innerHTML=EMPLOYEES.map(e=>`<option value="${e}">${e}</option>`).join(''); document.getElementById('assignModal').classList.add('open'); }
-async function confirmAssign() { const emp=document.getElementById('assignSelect').value; const b=state.books.find(x=>x.id===pendingBookId); b.checkedOutBy=emp; b.checkedOutDate=new Date().toISOString(); b.requests=b.requests.filter(r=>r!==emp); closeModal('assignModal'); showToast(`📗 "${b.title}" assigned to ${emp}`); await saveBook(b); }
+function openAssign(id) {
+  pendingBookId=id;
+  const b=state.books.find(x=>x.id===id);
+  document.getElementById('assignModalDesc').textContent=`Assign "${b.title}" to:`;
+  const sel=document.getElementById('assignSelect');
+  sel.innerHTML=EMPLOYEES.map(e=>`<option value="${e}">${e}</option>`).join('');
+  document.getElementById('assignDate').value=new Date().toISOString().split('T')[0];
+  document.getElementById('assignModal').classList.add('open');
+}
+async function confirmAssign() {
+  const emp=document.getElementById('assignSelect').value;
+  const dateVal=document.getElementById('assignDate').value;
+  const b=state.books.find(x=>x.id===pendingBookId);
+  b.checkedOutBy=emp;
+  b.checkedOutDate=dateVal ? new Date(dateVal).toISOString() : new Date().toISOString();
+  b.requests=b.requests.filter(r=>r!==emp);
+  closeModal('assignModal');
+  showToast(`📗 "${b.title}" assigned to ${emp}`);
+  render();
+  await saveBook(b);
+}
 function closeModal(id) { document.getElementById(id).classList.remove('open'); pendingBookId=null; }
 
 document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); }));
