@@ -503,7 +503,9 @@ const DB_URL = "https://iel-library-lounge-f4809-default-rtdb.asia-southeast1.fi
 
 // ── Constants ─────────────────────────────────────────────
 const ADMIN_EMAIL = "delphine.laguette@ibl-energy.com";
-const ADMIN_PWD   = "REDACTED";
+// SHA-256 of ADMIN_SALT + password — the password itself is never stored in the code
+const ADMIN_SALT     = "iel-library-lounge:";
+const ADMIN_PWD_HASH = "b5010d9eae9939798dc15296c3e134a32233f3f94a22adcf7db28fd42ec24bd2";
 
 const EMPLOYEES = ["Pierre","Aarti","Alvin","Rao","Joshua","Delphine","Edmund","Shaan","Kavinen","Daren","Arnaud","Shakeel","Azagen","Hansley","Aradhana","Agnes","Varun","Luqman","Kamlesh","Disha","Safya","Dishma","Alvaro","Arjun","Teven","Akshay","Poumalen","Dhivesh","David","Louise","Brice"];
 
@@ -734,10 +736,14 @@ function openAdminLogin() {
   document.getElementById('adminLoginModal').classList.add('open');
   setTimeout(() => document.getElementById('adminEmail').focus(), 100);
 }
-function submitAdminLogin() {
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+async function submitAdminLogin() {
   const email = document.getElementById('adminEmail').value.trim().toLowerCase();
   const pwd   = document.getElementById('adminPassword').value;
-  if (email === ADMIN_EMAIL && pwd === ADMIN_PWD) {
+  if (email === ADMIN_EMAIL && await sha256Hex(ADMIN_SALT + pwd) === ADMIN_PWD_HASH) {
     adminAuthenticated = true;
     closeModal('adminLoginModal');
     switchTab('admin');

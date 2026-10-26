@@ -19,13 +19,13 @@
 <body>
 <h1>📚 Book Cover Uploader</h1>
 <p>This page uploads all 12 book covers to your imgbb account and gives you the updated <code>BOOK_COVERS</code> object to paste into <code>index.html</code>.</p>
-<p><strong>API Key:</strong> <code>89da7fcc2aaa8eb72b49d1f09e0167d7</code></p>
 <button id="startBtn" onclick="startUpload()">Start Upload</button>
 <div id="log">Press "Start Upload" to begin…</div>
 <div id="output"></div>
 
 <script>
-const API_KEY = "89da7fcc2aaa8eb72b49d1f09e0167d7";
+// Asked at run time so the imgbb key is never stored in the code
+let API_KEY = "";
 
 const BOOKS = [
   { id: 1,  name: "Start_with_Why",          isbn: "9781591846444" },
@@ -85,6 +85,8 @@ async function uploadToImgbb(base64, name) {
 }
 
 async function startUpload() {
+  API_KEY = API_KEY || (prompt("imgbb API key:") || "").trim();
+  if (!API_KEY) return;
   document.getElementById("startBtn").disabled = true;
   logEl.textContent = "";
   outEl.style.display = "none";
