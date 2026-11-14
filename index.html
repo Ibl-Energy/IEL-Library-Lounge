@@ -547,6 +547,9 @@ const BOOK_COVERS = {
   41: "https://covers.openlibrary.org/b/isbn/9780349423142-L.jpg",
   42: "https://covers.openlibrary.org/b/isbn/9781422188613-L.jpg",
   43: "https://covers.openlibrary.org/b/isbn/9780060833459-L.jpg",
+  44: "covers/44.webp", 45: "covers/45.webp", 46: "covers/46.jpg", 47: "covers/47.jpg",
+  48: "covers/48.jpg",  49: "covers/49.jpg",  50: "covers/50.webp", 51: "covers/51.jpg",
+  52: "covers/52.jpg",  53: "covers/53.jpg",  54: "covers/54.webp",
 };
 
 const BOOKS_RAW = [
@@ -581,7 +584,19 @@ const BOOKS_RAW = [
   {id:40, title:"The Checklist Manifesto",                 subtitle:"How to Get Things Right",                             author:"Atul Gawande"},
   {id:41, title:"Getting Things Done",                     subtitle:"The Art of Stress-Free Productivity",                 author:"David Allen"},
   {id:42, title:"The First 90 Days",                       subtitle:"Proven Strategies for Getting Up to Speed Faster and Smarter", author:"Michael D. Watkins"},
-  {id:43, title:"The Effective Executive",                 subtitle:"The Definitive Guide to Getting the Right Things Done", author:"Peter F. Drucker"}
+  {id:43, title:"The Effective Executive",                 subtitle:"The Definitive Guide to Getting the Right Things Done", author:"Peter F. Drucker"},
+  // Added from shelf photos (Nov 2026), covers stored in covers/
+  {id:44, title:"L'Afrique, une promesse",                 subtitle:"Comment l'Afrique s'éveillera",                       author:"Hervé Mahicka"},
+  {id:45, title:"La Ruée vers l'Europe",                   subtitle:"La jeune Afrique en route pour le Vieux Continent",   author:"Stephen Smith"},
+  {id:46, title:"The Third Industrial Revolution",         subtitle:"How Lateral Power Is Transforming Energy, the Economy, and the World", author:"Jeremy Rifkin"},
+  {id:47, title:"The World Is Flat",                       subtitle:"The Globalized World in the Twenty-First Century",    author:"Thomas L. Friedman"},
+  {id:48, title:"Building Bridges",                        subtitle:"A Collection of Cartoons",                            author:"Brandan Reynolds"},
+  {id:49, title:"Our Final Century",                       subtitle:"Will Civilisation Survive the Twenty-First Century?", author:"Martin Rees"},
+  {id:50, title:"Soyons aussi intelligents que la nature !", subtitle:"12 tendances révolutionnaires pour sauver notre consommation… et notre planète", author:"Gunter Pauli"},
+  {id:51, title:"Alice in Dodoland",                       subtitle:"Looking to the Mauritian Economy",                    author:"Eric Ng Ping Cheun"},
+  {id:52, title:"Chaos",                                   subtitle:"The Amazing Science of the Unpredictable",            author:"James Gleick"},
+  {id:53, title:"Un paléoanthropologue dans l'entreprise", subtitle:"S'adapter et innover pour survivre",                  author:"Pascal Picq"},
+  {id:54, title:"Ce qu'attend l'Afrique",                  subtitle:"Ressources locales, tensions mondiales",              author:"Benoît Chervalier"}
 ];
 
 // ── Pending Requests ──────────────────────────────────────
@@ -904,7 +919,7 @@ function renderCatalog() {
       : `<span class="copy-dots" title="${free.length} of ${n} copies available">${g.map(c => `<i class="${c.checkedOutBy?'out':''}"></i>`).join('')}</span><span class="badge ${isOut?'checked-out':'available'}">${free.length}/${n} available</span>`;
     return `<div class="book-card">
       <div class="book-cover-wrap">
-        <img src="${cover}" alt="${b.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <img src="${cover}" alt="${b.title}" onload="if(this.naturalWidth>this.naturalHeight){this.style.objectFit='contain';this.style.objectPosition='center'}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div class="book-cover-placeholder">📖</div>
         <div class="status-ribbon ${isOut?'':'available'}">${ribbon}</div>
         ${n > 1 ? `<div class="copies-badge">📚 ${n} copies</div>` : ''}
